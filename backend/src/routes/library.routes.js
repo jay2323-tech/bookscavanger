@@ -3,6 +3,7 @@ import {
     addBook,
     getLibraryDashboard,
     getMyBooks,
+    syncIls,
     updateLibraryHours,
 } from "../controllers/library.controller.js";
 import {
@@ -20,6 +21,8 @@ router.get("/my-books", authenticateLibrary, getMyBooks);
 router.post("/books", authenticateLibrary, addBook);
 
 router.patch("/hours", authenticateLibrary, updateLibraryHours);
+
+router.post("/ils/sync", authenticateLibrary, syncIls);
 
 router.get("/holds", authenticateLibrary, libraryHolds);
 router.patch("/holds/:id", authenticateLibrary, updateHoldStatus);

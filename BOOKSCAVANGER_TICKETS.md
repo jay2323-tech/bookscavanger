@@ -34,7 +34,7 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 - [x] **BS-012** Filters: radius, available-only, library, sort
 - [ ] **BS-013** Book covers + metadata enrich (Open Library) — deferred for last
 - [x] **BS-014** Did-you-mean + zero-result recovery
-- [ ] **BS-015** Deploy monorepo (`jay2323-tech/bookscavanger`) to Render + Vercel
+- [x] **BS-015** Deploy monorepo (`jay2323-tech/bookscavanger`) to Render + Vercel
 
 ---
 
@@ -62,16 +62,17 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 
 ## P3 — Platform scale
 
-- [ ] **BS-040** Dedicated search engine (Meilisearch / Typesense)
-- [ ] **BS-041** Rate limits + edge cache for public search
-- [ ] **BS-042** PWA / mobile-first installable app
-- [ ] **BS-043** ILS / Koha connector for auto inventory sync
+- [x] **BS-040** Dedicated search engine (Meilisearch optional; Supabase fallback)
+- [x] **BS-041** Rate limits + edge cache for public search
+- [x] **BS-042** PWA / mobile-first installable app
+- [x] **BS-043** ILS / Koha connector for auto inventory sync
+
+See **[P3.md](./P3.md)** for Meili / ILS setup.
 
 ---
 
 ## Suggested next
 
-1. **BS-015** — Finish Vercel frontend on monorepo (Render backend already live). See `DEPLOY.md`  
-2. **BS-013** — Covers + metadata enrich  
-3. **BS-022** — ISBN barcode scanner  
-4. **P3** — Meilisearch / PWA / ILS when ready 
+1. **BS-013** — Book covers + metadata enrich (Open Library)  
+2. **BS-022** — ISBN barcode scanner (mobile camera)  
+3. Optional: host Meilisearch in prod + run `/api/admin/meili-sync` 

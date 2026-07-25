@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Source_Sans_3 } from "next/font/google";
 import AuthHashCatcher from "@/app/components/AuthHashCatcher";
 import Navbar from "@/app/components/Navbar";
+import PwaRegister from "@/app/components/PwaRegister";
 import "./globals.css";
 
 const display = Fraunces({
@@ -18,6 +19,27 @@ export const metadata: Metadata = {
   title: "BookScavenger — Find books near you",
   description:
     "Search for books and discover the nearest libraries that have them in stock.",
+  applicationName: "BookScavenger",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "BookScavenger",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/icon-192.png", sizes: "192x192" }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#D4AF37",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -32,6 +54,7 @@ export default function RootLayout({
         style={{ fontFamily: "var(--font-body), system-ui, sans-serif" }}
       >
         <AuthHashCatcher />
+        <PwaRegister />
         <Navbar />
         {children}
       </body>

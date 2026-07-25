@@ -308,3 +308,41 @@ export const getSearchInsights = async (req, res) => {
     return res.status(500).json({ error: "Failed to load search insights" });
   }
 };
+
+/**
+ * POST /api/admin/meili-sync — reindex all books into Meilisearch (BS-040)
+ */
+export const syncMeilisearch = async (req, res) => {
+  try {
+    const { meiliEnabled, indexBooks, ensureBooksIndex } = await import(
+      "../services/meilisearch.js"
+    );
+    if (!meiliEnabled()) {
+      return res.status(400).json({
+        error:
+          "Meilisearch not configured. Set MEILI_HOST (and optional MEILI_API_KEY).",
+      });
+    }
+
+    await ensureBooksIndex();
+
+    const { data, error } = await supabaseAdmin
+      .from("books")
+      .select(
+        "id, title, author, isbn, available, library_id, libraries(name, latitude, longitude, opens_at, closes_at)"
+      )
+      .limit(5000);
+
+    if (error) throw error;
+
+    const { indexed } = await indexBooks(data || []);
+    return res.json({
+      message: "Meilisearch reindex queued/accepted",
+      indexed,
+      engine: "meilisearch",
+    });
+  } catch (err) {
+    console.error("syncMeilisearch:", err);
+    return res.status(500).json({ error: err.message || "Meili sync failed" });
+  }
+};

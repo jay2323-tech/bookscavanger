@@ -52,4 +52,4 @@ See **[DEPLOY.md](./DEPLOY.md)** for the full BS-015 checklist.
 
 ## Tickets
 
-See `BOOKSCAVANGER_TICKETS.md`.
+See `BOOKSCAVANGER_TICKETS.md`. Platform scale (Meili / PWA / ILS): `P3.md`.

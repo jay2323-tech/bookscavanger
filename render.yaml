@@ -20,3 +20,9 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: MEILI_HOST
+        sync: false
+      - key: MEILI_API_KEY
+        sync: false
+      - key: MEILI_INDEX
+        value: books

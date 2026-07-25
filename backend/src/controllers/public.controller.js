@@ -1,5 +1,6 @@
 import { supabase } from "../config/db.js";
 import { calculateDistance } from "../utils/distance.js";
+import { searchMeili, meiliEnabled } from "../services/meilisearch.js";
 
 /** Escape for PostgREST or() filter values */
 function sanitize(q = "") {
@@ -160,6 +161,28 @@ function groupIntoEditions(results) {
 }
 
 async function fetchMatchingBooks(q) {
+  // Prefer Meilisearch when configured (BS-040)
+  if (meiliEnabled()) {
+    const hits = await searchMeili(q, { limit: 120 });
+    if (hits && hits.length) {
+      return hits.map((h) => ({
+        id: Number(h.id) || h.id,
+        title: h.title,
+        author: h.author,
+        isbn: h.isbn,
+        available: h.available,
+        library_id: h.library_id,
+        libraries: {
+          name: h.library_name,
+          latitude: h.latitude,
+          longitude: h.longitude,
+          opens_at: h.opens_at,
+          closes_at: h.closes_at,
+        },
+      }));
+    }
+  }
+
   const { data, error } = await supabase
     .from("books")
     .select(
