@@ -3,7 +3,7 @@
 export type SearchFiltersState = {
   radius: string;
   availableOnly: boolean;
-  sort: "distance" | "title" | "author";
+  sort: "best" | "distance" | "title" | "author";
 };
 
 interface Props {
@@ -44,6 +44,7 @@ export default function SearchFilters({ filters, setFilters }: Props) {
           }
           className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-[#F8F5F0]"
         >
+          <option value="best">Best match</option>
           <option value="distance">Nearest</option>
           <option value="title">Title</option>
           <option value="author">Author</option>

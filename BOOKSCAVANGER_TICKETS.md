@@ -32,7 +32,7 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 - [x] **BS-010** Instant autocomplete (title/author/ISBN typeahead)
 - [x] **BS-011** Typo-tolerant search (`pg_trgm` or Meilisearch)
 - [x] **BS-012** Filters: radius, available-only, library, sort
-- [ ] **BS-013** Book covers + metadata enrich (Open Library)
+- [ ] **BS-013** Book covers + metadata enrich (Open Library) — deferred for last
 - [x] **BS-014** Did-you-mean + zero-result recovery
 - [ ] **BS-015** Deploy monorepo (`jay2323-tech/bookscavanger`) to Render + Vercel
 
@@ -40,12 +40,12 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 
 ## P1 — Unfair local advantage
 
-- [ ] **BS-020** Ranking v2: distance × availability × popularity
-- [ ] **BS-021** Popular / trending near you
+- [x] **BS-020** Ranking v2: distance × availability × popularity
+- [x] **BS-021** Popular / trending near you
 - [ ] **BS-022** ISBN barcode scanner (mobile camera)
 - [ ] **BS-023** Edition grouping (same work, many ISBNs)
 - [ ] **BS-024** Library hours + Open now filter
-- [ ] **BS-025** Clustered results map with list↔map sync
+- [x] **BS-025** Clustered results map with list↔map sync
 - [ ] **BS-026** Search analytics pipeline (queries, zeros, CTR)
 
 ---

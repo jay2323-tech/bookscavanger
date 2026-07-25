@@ -57,6 +57,55 @@ function mapBook(book, lat, lng) {
   };
 }
 
+/** Recent search query → count (popularity signal) */
+async function getPopularityMap() {
+  const { data, error } = await supabase
+    .from("analytics")
+    .select("metadata, created_at")
+    .eq("event_type", "search")
+    .order("created_at", { ascending: false })
+    .limit(800);
+
+  if (error) {
+    console.error("popularity map:", error.message);
+    return {};
+  }
+
+  const counts = {};
+  for (const row of data || []) {
+    const q = String(row.metadata?.query || "")
+      .toLowerCase()
+      .trim();
+    if (!q || q.length < 2) continue;
+    counts[q] = (counts[q] || 0) + 1;
+  }
+  return counts;
+}
+
+/**
+ * Ranking v2: available × distance × popularity
+ * Higher score = better.
+ */
+function rankScore(book, popularity) {
+  const availableBoost = book.available !== false ? 1 : 0.15;
+  const dist = book.distance == null ? 40 : book.distance;
+  const distanceScore = 1 / (1 + dist / 3); // strong near bias
+  const title = (book.title || "").toLowerCase();
+  const author = (book.author || "").toLowerCase();
+  const pop =
+    (popularity[title] || 0) +
+    (popularity[author] || 0) * 0.3 +
+    Object.entries(popularity).reduce((acc, [q, c]) => {
+      if (title.includes(q) || q.includes(title.slice(0, 12))) {
+        return acc + c * 0.2;
+      }
+      return acc;
+    }, 0);
+
+  const popularityScore = Math.log1p(pop);
+  return availableBoost * (distanceScore * 4 + popularityScore * 1.2);
+}
+
 async function fetchMatchingBooks(q) {
   const { data, error } = await supabase
     .from("books")
@@ -97,7 +146,7 @@ async function fetchFuzzyCandidates(q) {
 
 /**
  * GET /api/books/search
- * q, lat, lng, radius (km), available (true|false), sort (distance|title|author)
+ * q, lat, lng, radius (km), available (true|false), sort (best|distance|title|author)
  */
 export async function searchBooks(req, res) {
   const q = sanitize(req.query.q || "");
@@ -109,9 +158,9 @@ export async function searchBooks(req, res) {
       : null;
   const availableOnly =
     req.query.available === "true" || req.query.available === "1";
-  const sort = ["distance", "title", "author"].includes(req.query.sort)
+  const sort = ["best", "distance", "title", "author"].includes(req.query.sort)
     ? req.query.sort
-    : "distance";
+    : "best";
 
   if (!q) {
     return res.status(400).json({ error: "Query q is required" });
@@ -130,7 +179,14 @@ export async function searchBooks(req, res) {
       }
     }
 
-    let results = rows.map((book) => mapBook(book, lat, lng));
+    const popularity = sort === "best" ? await getPopularityMap() : {};
+    let results = rows.map((book) => {
+      const mapped = mapBook(book, lat, lng);
+      return {
+        ...mapped,
+        rank_score: rankScore(mapped, popularity),
+      };
+    });
 
     if (availableOnly) {
       results = results.filter((b) => b.available !== false);
@@ -149,9 +205,13 @@ export async function searchBooks(req, res) {
       if (sort === "author") {
         return (a.author || "").localeCompare(b.author || "");
       }
-      const da = a.distance ?? Number.POSITIVE_INFINITY;
-      const db = b.distance ?? Number.POSITIVE_INFINITY;
-      return da - db;
+      if (sort === "distance") {
+        const da = a.distance ?? Number.POSITIVE_INFINITY;
+        const db = b.distance ?? Number.POSITIVE_INFINITY;
+        return da - db;
+      }
+      // best
+      return (b.rank_score || 0) - (a.rank_score || 0);
     });
 
     await supabase
@@ -177,6 +237,7 @@ export async function searchBooks(req, res) {
         fuzzy,
         suggestion: fuzzy ? suggestion : null,
         count: results.length,
+        sort,
       },
     });
   } catch (err) {
@@ -187,7 +248,6 @@ export async function searchBooks(req, res) {
 
 /**
  * GET /api/books/suggest?q=
- * Autocomplete suggestions (titles + authors)
  */
 export async function suggestBooks(req, res) {
   const q = sanitize(req.query.q || "");
@@ -239,5 +299,104 @@ export async function suggestBooks(req, res) {
   } catch (err) {
     console.error("Suggest error:", err);
     res.status(500).json({ error: "Suggest failed" });
+  }
+}
+
+/**
+ * GET /api/books/trending?lat=&lng=&limit=
+ * Popular searches that exist in inventory, nearest copy preferred.
+ */
+export async function trendingBooks(req, res) {
+  const lat = req.query.lat;
+  const lng = req.query.lng;
+  const limit = Math.min(Number(req.query.limit) || 8, 16);
+
+  try {
+    const popularity = await getPopularityMap();
+    const topQueries = Object.entries(popularity)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([q]) => q);
+
+    // Fallback when analytics is empty: sample available books
+    if (topQueries.length === 0) {
+      const { data, error } = await supabase
+        .from("books")
+        .select("title, author, available, libraries(name, latitude, longitude)")
+        .eq("available", true)
+        .limit(40);
+
+      if (error) throw error;
+
+      const seen = new Set();
+      const fallback = [];
+      for (const book of data || []) {
+        if (!book.libraries || !book.title) continue;
+        const key = book.title.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const mapped = mapBook(book, lat, lng);
+        fallback.push({
+          title: mapped.title,
+          author: mapped.author,
+          library_name: mapped.library_name,
+          distance: mapped.distance,
+          search_count: 0,
+          available: mapped.available !== false,
+        });
+        if (fallback.length >= limit) break;
+      }
+
+      fallback.sort(
+        (a, b) =>
+          (a.distance ?? 999) - (b.distance ?? 999)
+      );
+      return res.json(fallback);
+    }
+
+    const trending = [];
+    const seenTitles = new Set();
+
+    for (const q of topQueries) {
+      if (trending.length >= limit) break;
+      const safe = sanitize(q);
+      if (safe.length < 2) continue;
+
+      const { data, error } = await supabase
+        .from("books")
+        .select("title, author, available, libraries(name, latitude, longitude)")
+        .or(`title.ilike.%${safe}%,author.ilike.%${safe}%`)
+        .limit(30);
+
+      if (error || !data?.length) continue;
+
+      const mapped = data
+        .filter((b) => b.libraries)
+        .map((b) => mapBook(b, lat, lng))
+        .sort(
+          (a, b) =>
+            (a.distance ?? 999) - (b.distance ?? 999)
+        );
+
+      const best = mapped[0];
+      if (!best?.title) continue;
+      const key = best.title.toLowerCase();
+      if (seenTitles.has(key)) continue;
+      seenTitles.add(key);
+
+      trending.push({
+        title: best.title,
+        author: best.author,
+        library_name: best.library_name,
+        distance: best.distance,
+        search_count: popularity[q] || 0,
+        available: best.available !== false,
+      });
+    }
+
+    res.json(trending);
+  } catch (err) {
+    console.error("Trending error:", err);
+    res.status(500).json({ error: "Trending failed" });
   }
 }

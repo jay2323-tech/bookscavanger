@@ -10,6 +10,7 @@ import SearchBar from "../components/SearchBar";
 import SearchFilters, {
   type SearchFiltersState,
 } from "../components/SearchFilters";
+import TrendingNearYou from "../components/TrendingNearYou";
 
 type SearchBook = {
   title: string;
@@ -21,6 +22,10 @@ type SearchBook = {
   longitude?: number | null;
 };
 
+function libraryKey(b: SearchBook) {
+  return `${b.libraryName}|${b.latitude}|${b.longitude}`;
+}
+
 export default function SearchClient() {
   const params = useSearchParams();
   const initialQuery = params.get("q") || "";
@@ -30,10 +35,13 @@ export default function SearchClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fuzzyNote, setFuzzyNote] = useState<string | null>(null);
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
+    null
+  );
   const [filters, setFilters] = useState<SearchFiltersState>({
     radius: "",
     availableOnly: false,
-    sort: "distance",
+    sort: "best",
   });
 
   const mapLibraries = useMemo(() => {
@@ -47,17 +55,27 @@ export default function SearchClient() {
           !Number.isNaN(b.longitude)
       )
       .filter((b) => {
-        const key = `${b.libraryName}-${b.latitude}-${b.longitude}`;
+        const key = libraryKey(b);
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       })
       .map((b) => ({
+        id: libraryKey(b),
         name: b.libraryName,
         latitude: b.latitude as number,
         longitude: b.longitude as number,
       }));
   }, [results]);
+
+  const selectLibrary = (id: string) => {
+    setSelectedLibraryId(id);
+    const safe = id.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const card = document.querySelector(
+      `[data-library-id="${safe}"]`
+    ) as HTMLElement | null;
+    card?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   const fetchBooks = async (overrideQuery?: string) => {
     const q = (overrideQuery ?? query).trim();
@@ -66,6 +84,7 @@ export default function SearchClient() {
     setLoading(true);
     setError("");
     setFuzzyNote(null);
+    setSelectedLibraryId(null);
 
     if (!navigator.geolocation) {
       setError("Location access is required");
@@ -139,7 +158,8 @@ export default function SearchClient() {
         Find books near you
       </h1>
       <p className="text-gray-400 mb-6">
-        Search by title, author, or ISBN. Autocomplete and filters included.
+        Ranked by availability, distance, and popularity. Click a result to pin
+        it on the map.
       </p>
 
       <SearchBar
@@ -159,6 +179,8 @@ export default function SearchClient() {
         Apply filters
       </button>
 
+      {!initialQuery && !results.length && !loading && <TrendingNearYou />}
+
       {fuzzyNote && (
         <p className="mt-4 text-sm text-amber-300/90">{fuzzyNote}</p>
       )}
@@ -168,7 +190,7 @@ export default function SearchClient() {
         {!loading && error && (
           <p className="text-red-400 text-center">{error}</p>
         )}
-        {!loading && !error && results.length === 0 && (
+        {!loading && !error && results.length === 0 && query && (
           <EmptyState
             onTrySuggestion={(s) => {
               setQuery(s);
@@ -177,13 +199,26 @@ export default function SearchClient() {
           />
         )}
 
-        {results.map((book, i) => (
-          <BookResultCard key={i} book={book} />
-        ))}
+        {results.map((book, i) => {
+          const id = libraryKey(book);
+          return (
+            <div key={i} data-library-id={id}>
+              <BookResultCard
+                book={book}
+                selected={selectedLibraryId === id}
+                onSelect={() => selectLibrary(id)}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {!loading && mapLibraries.length > 0 && (
-        <LibraryMap libraries={mapLibraries} />
+        <LibraryMap
+          libraries={mapLibraries}
+          selectedId={selectedLibraryId}
+          onSelect={selectLibrary}
+        />
       )}
     </div>
   );

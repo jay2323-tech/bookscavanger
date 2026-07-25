@@ -1,3 +1,5 @@
+"use client";
+
 interface Props {
   book: {
     title: string;
@@ -8,9 +10,17 @@ interface Props {
     latitude?: number | null;
     longitude?: number | null;
   };
+  selected?: boolean;
+  onSelect?: () => void;
+  cardId?: string;
 }
 
-export default function BookResultCard({ book }: Props) {
+export default function BookResultCard({
+  book,
+  selected,
+  onSelect,
+  cardId,
+}: Props) {
   const hasCoords =
     typeof book.latitude === "number" &&
     typeof book.longitude === "number" &&
@@ -18,7 +28,24 @@ export default function BookResultCard({ book }: Props) {
     !Number.isNaN(book.longitude);
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 hover:border-[#D4AF37] transition">
+    <div
+      id={cardId}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (!onSelect) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`bg-slate-800 border rounded-xl p-5 transition cursor-pointer ${
+        selected
+          ? "border-[#D4AF37] ring-1 ring-[#D4AF37]/40"
+          : "border-slate-700 hover:border-[#D4AF37]"
+      }`}
+    >
       <div className="flex justify-between items-start gap-4">
         <div>
           <h3 className="text-xl font-semibold">{book.title}</h3>
@@ -35,6 +62,7 @@ export default function BookResultCard({ book }: Props) {
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block mt-3 text-sm text-[#D4AF37] hover:underline"
+              onClick={(e) => e.stopPropagation()}
             >
               Directions →
             </a>

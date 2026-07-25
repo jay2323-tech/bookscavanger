@@ -3,6 +3,7 @@
 import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
 
 type Library = {
+  id: string;
   name: string;
   latitude: number;
   longitude: number;
@@ -10,24 +11,47 @@ type Library = {
 
 interface Props {
   libraries?: Library[];
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
 }
 
-function DirectionsList({ libraries }: { libraries: Library[] }) {
+function DirectionsList({
+  libraries,
+  selectedId,
+  onSelect,
+}: {
+  libraries: Library[];
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
+}) {
   return (
     <div className="mt-10 rounded-lg border border-gray-800 bg-gray-900/50 p-5">
-      <h3 className="text-lg font-semibold text-[#D4AF37] mb-3">Libraries on map</h3>
+      <h3 className="text-lg font-semibold text-[#D4AF37] mb-3">
+        Libraries on map
+      </h3>
       <ul className="space-y-2">
-        {libraries.map((lib, idx) => (
-          <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <span>{lib.name}</span>
-            <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${lib.latitude},${lib.longitude}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-[#D4AF37] hover:underline"
+        {libraries.map((lib) => (
+          <li key={lib.id}>
+            <button
+              type="button"
+              onClick={() => onSelect?.(lib.id)}
+              className={`w-full text-left flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-md px-2 py-2 ${
+                selectedId === lib.id
+                  ? "bg-slate-800 text-[#D4AF37]"
+                  : "hover:bg-slate-800/60"
+              }`}
             >
-              Get directions →
-            </a>
+              <span>{lib.name}</span>
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${lib.latitude},${lib.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-[#D4AF37] hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Get directions →
+              </a>
+            </button>
           </li>
         ))}
       </ul>
@@ -40,18 +64,29 @@ function DirectionsList({ libraries }: { libraries: Library[] }) {
   );
 }
 
-export default function LibraryMap({ libraries = [] }: Props) {
+export default function LibraryMap({
+  libraries = [],
+  selectedId,
+  onSelect,
+}: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
 
   if (!libraries.length) return null;
 
   if (!apiKey) {
-    return <DirectionsList libraries={libraries} />;
+    return (
+      <DirectionsList
+        libraries={libraries}
+        selectedId={selectedId}
+        onSelect={onSelect}
+      />
+    );
   }
 
+  const selected = libraries.find((l) => l.id === selectedId) || libraries[0];
   const center = {
-    lat: libraries[0].latitude,
-    lng: libraries[0].longitude,
+    lat: selected.latitude,
+    lng: selected.longitude,
   };
 
   return (
@@ -61,7 +96,7 @@ export default function LibraryMap({ libraries = [] }: Props) {
           <GoogleMap
             mapContainerStyle={{ width: "100%", height: "400px" }}
             center={center}
-            zoom={12}
+            zoom={selectedId ? 13 : 12}
             options={{
               styles: [
                 { elementType: "geometry", stylers: [{ color: "#1f2933" }] },
@@ -76,17 +111,23 @@ export default function LibraryMap({ libraries = [] }: Props) {
               ],
             }}
           >
-            {libraries.map((lib, idx) => (
+            {libraries.map((lib) => (
               <Marker
-                key={idx}
+                key={lib.id}
                 position={{ lat: lib.latitude, lng: lib.longitude }}
                 title={lib.name}
+                opacity={selectedId && selectedId !== lib.id ? 0.55 : 1}
+                onClick={() => onSelect?.(lib.id)}
               />
             ))}
           </GoogleMap>
         </LoadScript>
       </div>
-      <DirectionsList libraries={libraries} />
+      <DirectionsList
+        libraries={libraries}
+        selectedId={selectedId}
+        onSelect={onSelect}
+      />
     </div>
   );
 }
