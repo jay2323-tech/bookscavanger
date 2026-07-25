@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/app/lib/supabaseClient";
+import BookCover from "./BookCover";
 
 export type EditionCopy = {
   id?: string | number;
@@ -33,6 +34,10 @@ export type Edition = {
   longitude?: number | null;
   distance?: number | null;
   found_count?: number;
+  cover_url?: string | null;
+  publish_year?: number | null;
+  subjects?: string[];
+  primary_isbn?: string | null;
   copies: EditionCopy[];
 };
 
@@ -144,25 +149,37 @@ export default function EditionResultCard({
       <div className="flex justify-between items-start gap-4">
         <button
           type="button"
-          className="text-left flex-1"
+          className="text-left flex-1 flex gap-4 min-w-0"
           onClick={() => {
             onEngage?.();
             if (nearest) onSelect?.(libraryKey(nearest));
           }}
         >
-          <h3 className="text-xl font-semibold">{edition.title}</h3>
-          <p className="text-slate-400">{edition.author}</p>
-          <p className="mt-2 text-sm text-slate-300">
-            {edition.library_count} librar
-            {edition.library_count === 1 ? "y" : "ies"} · {edition.copy_count}{" "}
-            {edition.copy_count === 1 ? "copy" : "copies"}
-            {edition.best_distance != null
-              ? ` · nearest ${edition.best_distance.toFixed(1)} km`
-              : ""}
-            {edition.found_count
-              ? ` · ${edition.found_count} found recently`
-              : ""}
-          </p>
+          <BookCover src={edition.cover_url} title={edition.title} />
+          <div className="min-w-0">
+            <h3 className="text-xl font-semibold leading-snug">
+              {edition.title}
+            </h3>
+            <p className="text-slate-400">{edition.author}</p>
+            {(edition.publish_year || edition.subjects?.length) && (
+              <p className="mt-1 text-xs text-slate-500">
+                {edition.publish_year ? String(edition.publish_year) : ""}
+                {edition.publish_year && edition.subjects?.length ? " · " : ""}
+                {edition.subjects?.slice(0, 2).join(" · ")}
+              </p>
+            )}
+            <p className="mt-2 text-sm text-slate-300">
+              {edition.library_count} librar
+              {edition.library_count === 1 ? "y" : "ies"} · {edition.copy_count}{" "}
+              {edition.copy_count === 1 ? "copy" : "copies"}
+              {edition.best_distance != null
+                ? ` · nearest ${edition.best_distance.toFixed(1)} km`
+                : ""}
+              {edition.found_count
+                ? ` · ${edition.found_count} found recently`
+                : ""}
+            </p>
+          </div>
         </button>
 
         <div className="flex flex-col items-end gap-2 shrink-0">

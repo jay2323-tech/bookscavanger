@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import BarcodeScanner from "./BarcodeScanner";
 
 type Suggestion = {
   type: "title" | "author";
@@ -24,6 +25,7 @@ export default function SearchBar({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
+  const [scanOpen, setScanOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const backend = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -86,54 +88,90 @@ export default function SearchBar({
   };
 
   return (
-    <div ref={wrapRef} className="relative flex flex-col sm:flex-row gap-4">
-      <div className="relative flex-1">
-        <input
-          type="text"
-          placeholder="Search by book name, author, or ISBN..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => suggestions.length > 0 && setOpen(true)}
-          onKeyDown={onKeyDown}
-          className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
-          autoComplete="off"
-        />
+    <>
+      <div ref={wrapRef} className="relative flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            placeholder="Search by book name, author, or ISBN..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => suggestions.length > 0 && setOpen(true)}
+            onKeyDown={onKeyDown}
+            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
+            autoComplete="off"
+            inputMode="search"
+          />
+          <button
+            type="button"
+            title="Scan ISBN barcode"
+            aria-label="Scan ISBN barcode"
+            onClick={() => setScanOpen(true)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-400 hover:text-[#D4AF37] hover:bg-slate-700/80"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden
+            >
+              <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+              <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+              <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+              <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+              <path d="M7 8v8M10 8v8M13 8v5M16 8v8M19 8v8" />
+            </svg>
+          </button>
 
-        {open && suggestions.length > 0 && (
-          <ul className="absolute z-20 mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden shadow-lg">
-            {suggestions.map((s, i) => (
-              <li key={`${s.type}-${s.label}`}>
-                <button
-                  type="button"
-                  className={`w-full text-left px-4 py-3 text-sm ${
-                    i === active ? "bg-slate-800" : "hover:bg-slate-800"
-                  }`}
-                  onMouseEnter={() => setActive(i)}
-                  onClick={() => pick(s.label)}
-                >
-                  <span className="font-medium text-[#F8F5F0]">{s.label}</span>
-                  {s.secondary && (
-                    <span className="block text-xs text-slate-400 mt-0.5">
-                      {s.type === "author" ? "Author" : s.secondary}
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+          {open && suggestions.length > 0 && (
+            <ul className="absolute z-20 mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden shadow-lg">
+              {suggestions.map((s, i) => (
+                <li key={`${s.type}-${s.label}`}>
+                  <button
+                    type="button"
+                    className={`w-full text-left px-4 py-3 text-sm ${
+                      i === active ? "bg-slate-800" : "hover:bg-slate-800"
+                    }`}
+                    onMouseEnter={() => setActive(i)}
+                    onClick={() => pick(s.label)}
+                  >
+                    <span className="font-medium text-[#F8F5F0]">{s.label}</span>
+                    {s.secondary && (
+                      <span className="block text-xs text-slate-400 mt-0.5">
+                        {s.type === "author" ? "Author" : s.secondary}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <button
+          onClick={() => {
+            setOpen(false);
+            onSearch();
+          }}
+          disabled={loading}
+          className="rounded-lg bg-[#D4AF37] text-slate-900 px-6 py-3 font-semibold hover:opacity-90 disabled:opacity-50"
+        >
+          {loading ? "Searching..." : "Search"}
+        </button>
       </div>
 
-      <button
-        onClick={() => {
+      <BarcodeScanner
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScan={(isbn) => {
+          setQuery(isbn);
           setOpen(false);
-          onSearch();
+          onSearch(isbn);
         }}
-        disabled={loading}
-        className="rounded-lg bg-[#D4AF37] text-slate-900 px-6 py-3 font-semibold hover:opacity-90 disabled:opacity-50"
-      >
-        {loading ? "Searching..." : "Search"}
-      </button>
-    </div>
+      />
+    </>
   );
 }

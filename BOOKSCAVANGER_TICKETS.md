@@ -32,7 +32,7 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 - [x] **BS-010** Instant autocomplete (title/author/ISBN typeahead)
 - [x] **BS-011** Typo-tolerant search (`pg_trgm` or Meilisearch)
 - [x] **BS-012** Filters: radius, available-only, library, sort
-- [ ] **BS-013** Book covers + metadata enrich (Open Library) — deferred for last
+- [x] **BS-013** Book covers + metadata enrich (Open Library)
 - [x] **BS-014** Did-you-mean + zero-result recovery
 - [x] **BS-015** Deploy monorepo (`jay2323-tech/bookscavanger`) to Render + Vercel
 
@@ -42,7 +42,7 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 
 - [x] **BS-020** Ranking v2: distance × availability × popularity
 - [x] **BS-021** Popular / trending near you
-- [ ] **BS-022** ISBN barcode scanner (mobile camera) — deferred for last
+- [x] **BS-022** ISBN barcode scanner (mobile camera)
 - [x] **BS-023** Edition grouping (same work, many ISBNs)
 - [x] **BS-024** Library hours + Open now filter
 - [x] **BS-025** Clustered results map with list↔map sync
@@ -73,6 +73,6 @@ See **[P3.md](./P3.md)** for Meili / ILS setup when ready.
 
 ## Suggested next
 
-1. **BS-013** — Book covers + metadata enrich (Open Library)  
-2. **BS-022** — ISBN barcode scanner (mobile camera)  
-3. **BS-040** — Turn on Meilisearch later (`docker compose` + `MEILI_HOST` + meili-sync) 
+1. **BS-040** — Turn on Meilisearch later (`docker compose` + `MEILI_HOST` + meili-sync)  
+2. Polish / real library onboarding feedback from users  
+3. Optional: cache Open Library metadata in Supabase for colder books 

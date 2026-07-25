@@ -1,6 +1,7 @@
 import { supabase } from "../config/db.js";
 import { calculateDistance } from "../utils/distance.js";
 import { searchMeili, meiliEnabled } from "../services/meilisearch.js";
+import { enrichEditions } from "../services/openLibrary.js";
 
 /** Escape for PostgREST or() filter values */
 function sanitize(q = "") {
@@ -404,6 +405,12 @@ export async function searchBooks(req, res) {
       }
     } catch {
       /* book_finds may not exist yet */
+    }
+
+    try {
+      await enrichEditions(editions, { maxLookups: 10 });
+    } catch (err) {
+      console.warn("cover enrich skip:", err.message);
     }
 
     await supabase
