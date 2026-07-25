@@ -42,13 +42,13 @@ export default function HomePage() {
             className="text-[#D4AF37] text-5xl sm:text-7xl md:text-8xl font-semibold tracking-tight mb-6"
             style={{ fontFamily: "var(--font-display), Georgia, serif" }}
           >
-            Lectère
+            BookScavenger
           </p>
           <h1 className="text-2xl sm:text-3xl md:text-4xl text-[#F8F5F0] font-medium leading-snug mb-4 max-w-xl">
             Physical books, found like online search.
           </h1>
           <p className="text-gray-400 text-lg mb-10 max-w-lg">
-            Search by title, author, or ISBN — Lectère shows the nearest
+            Search by title, author, or ISBN — BookScavenger shows the nearest
             libraries that have the book on the shelf.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
@@ -141,7 +141,7 @@ export default function HomePage() {
             Ready to look?
           </h2>
           <p className="text-gray-400 mb-8">
-            Start with a search — or bring your library onto Lectère.
+            Start with a search — or bring your library onto BookScavenger.
           </p>
           <Link
             href="/search"

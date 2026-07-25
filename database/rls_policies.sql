@@ -1,4 +1,4 @@
--- Lectère — RLS recommendations
+-- BookScavenger — RLS recommendations
 -- Run after schema.sql. Service role bypasses RLS (backend OK).
 
 alter table public.profiles enable row level security;

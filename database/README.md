@@ -1,6 +1,6 @@
 # Database (Supabase)
 
-Lectère uses **Supabase** (Postgres + Auth).
+BookScavenger uses **Supabase** (Postgres + Auth).
 
 ## Files
 

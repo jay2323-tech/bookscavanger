@@ -79,7 +79,7 @@ export default function Navbar() {
     <nav className="flex items-center justify-between px-6 md:px-10 py-5 border-b border-gray-800 bg-[#0F172A] text-white">
       <div className="flex items-center gap-8">
         <Link href="/" className="text-2xl font-bold text-[#D4AF37] tracking-tight">
-          Lectère
+          BookScavenger
         </Link>
         <div className="hidden sm:flex items-center gap-5">
           <Link href="/search" className={linkClass("/search")}>

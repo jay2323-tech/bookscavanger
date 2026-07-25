@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "For libraries — Lectère",
-  description: "List your library inventory on Lectère so readers can find your books.",
+  title: "For libraries — BookScavenger",
+  description: "List your library inventory on BookScavenger so readers can find your books.",
 };
 
 export default function ForLibrariesPage() {
@@ -19,7 +19,7 @@ export default function ForLibrariesPage() {
           Put your shelves on the map.
         </h1>
         <p className="text-gray-400 text-lg leading-relaxed mb-10">
-          Join Lectère so readers nearby can discover books you already have.
+          Join BookScavenger so readers nearby can discover books you already have.
           Upload inventory once, stay discoverable in every search.
         </p>
 

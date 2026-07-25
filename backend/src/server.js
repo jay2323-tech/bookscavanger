@@ -33,7 +33,7 @@ app.use(express.json());
    HEALTH CHECK
    ============================ */
 app.get("/", (_req, res) => {
-  res.json({ status: "Lectère backend running" });
+  res.json({ status: "BookScavenger backend running" });
 });
 
 /* ============================

@@ -14,7 +14,7 @@ const body = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "Lectère — Find books near you",
+  title: "BookScavenger — Find books near you",
   description:
     "Search for books and discover the nearest libraries that have them in stock.",
 };

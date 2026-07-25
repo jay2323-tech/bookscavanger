@@ -1,7 +1,7 @@
-# LECTÈRE — Product Notes
+# BOOKSCAVANGER — Product Notes
 
-## What is Lectère?
-Lectère is a book discovery platform where users search for books and find the nearest libraries that have them.
+## What is BookScavenger?
+BookScavenger is a book discovery platform where users search for books and find the nearest libraries that have them.
 
 Libraries register, get approved, upload inventory, and readers search by title, author, or ISBN.
 
@@ -26,7 +26,7 @@ Libraries register, get approved, upload inventory, and readers search by title,
 
 ### Backend
 ```bash
-cd bookscavanger-backend
+cd backend
 npm install
 npm run dev
 ```
@@ -34,7 +34,7 @@ Default port: **8080**
 
 ### Frontend
 ```bash
-cd bookscavanger-frontend
+cd frontend
 npm install
 npm run dev
 ```
@@ -108,22 +108,13 @@ PORT=8080
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
-NEXT_PUBLIC_GOOGLE_MAPS_KEY=   # optional; directions links work without it
+NEXT_PUBLIC_GOOGLE_MAPS_KEY=   # optional
 ```
 
 ---
 
-## What’s next (after demo)
-- Rate limiting & API usage logs
-- Per-library API keys (optional B2B)
-- Book reservation
-- Analytics charts
-- Bookstore support
-
----
-
-## Contributors
-Jayanth Krishna — Backend & System Architecture
+## What’s next
+See `BOOKSCAVANGER_TICKETS.md`.
 
 ## License
 MIT

@@ -1,4 +1,4 @@
-# Lectère — Supabase / Postgres schema
+# BookScavenger — Supabase / Postgres schema
 # Run in Supabase SQL editor (or via migrations) on a fresh project.
 
 -- Extensions (optional, for future typo-tolerant search)

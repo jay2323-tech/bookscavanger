@@ -10,14 +10,14 @@ export default function RejectedPage() {
       </h1>
       <p className="text-gray-400 text-center max-w-md mb-8">
         Your library application was not approved. If you believe this was a
-        mistake, contact the Lectère team or try signing up again with updated
+        mistake, contact the BookScavenger team or try signing up again with updated
         details.
       </p>
       <Link
         href="/"
         className="bg-[#D4AF37] text-black px-6 py-3 rounded-lg font-semibold hover:opacity-90"
       >
-        Back to Lectère
+        Back to BookScavenger
       </Link>
     </div>
   );

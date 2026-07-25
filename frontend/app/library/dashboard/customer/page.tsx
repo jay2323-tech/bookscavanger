@@ -30,7 +30,7 @@ export default function CustomerDashboard() {
     <div className="p-10 max-w-2xl">
       <h1 className="text-3xl font-bold mb-2">Welcome{name ? `, ${name}` : ""}</h1>
       <p className="text-gray-400 mb-8">
-        Search Lectère for books available in libraries near you.
+        Search BookScavenger for books available in libraries near you.
       </p>
       <Link
         href="/search"
