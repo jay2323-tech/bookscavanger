@@ -46,6 +46,7 @@ export default function LibraryLoginPage() {
     setLoading(true);
 
     try {
+      sessionStorage.setItem("oauth_intent", "library");
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {

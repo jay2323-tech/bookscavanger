@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Source_Sans_3 } from "next/font/google";
+import AuthHashCatcher from "@/app/components/AuthHashCatcher";
 import Navbar from "@/app/components/Navbar";
 import "./globals.css";
 
@@ -30,6 +31,7 @@ export default function RootLayout({
         className={`${display.variable} ${body.variable} bg-[#0F172A] text-[#F8F5F0] min-h-screen antialiased`}
         style={{ fontFamily: "var(--font-body), system-ui, sans-serif" }}
       >
+        <AuthHashCatcher />
         <Navbar />
         {children}
       </body>
