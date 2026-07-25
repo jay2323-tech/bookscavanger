@@ -62,12 +62,12 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 
 ## P3 — Platform scale
 
-- [x] **BS-040** Dedicated search engine (Meilisearch optional; Supabase fallback)
+- [ ] **BS-040** Dedicated search engine (Meilisearch) — deferred; code is opt-in via `MEILI_HOST`
 - [x] **BS-041** Rate limits + edge cache for public search
 - [x] **BS-042** PWA / mobile-first installable app
 - [x] **BS-043** ILS / Koha connector for auto inventory sync
 
-See **[P3.md](./P3.md)** for Meili / ILS setup.
+See **[P3.md](./P3.md)** for Meili / ILS setup when ready.
 
 ---
 
@@ -75,4 +75,4 @@ See **[P3.md](./P3.md)** for Meili / ILS setup.
 
 1. **BS-013** — Book covers + metadata enrich (Open Library)  
 2. **BS-022** — ISBN barcode scanner (mobile camera)  
-3. Optional: host Meilisearch in prod + run `/api/admin/meili-sync` 
+3. **BS-040** — Turn on Meilisearch later (`docker compose` + `MEILI_HOST` + meili-sync) 
