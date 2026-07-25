@@ -14,12 +14,22 @@ type Book = {
   available?: boolean;
 };
 
+type Hold = {
+  id: string;
+  title: string;
+  author: string | null;
+  status: string;
+  note: string | null;
+  created_at: string;
+};
+
 const backend = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 export default function LibrarianDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [books, setBooks] = useState<Book[]>([]);
+  const [holds, setHolds] = useState<Hold[]>([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [adding, setAdding] = useState(false);
@@ -41,6 +51,34 @@ export default function LibrarianDashboard() {
     }
     const data = await res.json();
     setBooks(Array.isArray(data) ? data : []);
+  };
+
+  const loadHolds = async () => {
+    try {
+      const res = await authFetch(`${backend}/api/library/holds`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setHolds(Array.isArray(data) ? data : []);
+    } catch {
+      /* migration may not be run yet */
+    }
+  };
+
+  const updateHold = async (id: string, status: string) => {
+    setError("");
+    setSuccess("");
+    try {
+      const res = await authFetch(`${backend}/api/library/holds/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update hold");
+      setSuccess(`Hold ${status}`);
+      await loadHolds();
+    } catch (err: any) {
+      setError(err.message || "Failed to update hold");
+    }
   };
 
   useEffect(() => {
@@ -69,6 +107,7 @@ export default function LibrarianDashboard() {
         }
 
         await loadBooks();
+        await loadHolds();
         setLoading(false);
       } catch (err) {
         console.error("Librarian dashboard error:", err);
@@ -201,6 +240,57 @@ export default function LibrarianDashboard() {
           {success && <p className="text-green-400 text-sm">{success}</p>}
         </div>
       )}
+
+      <section className="mb-12">
+        <h2 className="text-xl font-semibold mb-4 text-[#D4AF37]">
+          Hold requests
+        </h2>
+        {holds.length === 0 ? (
+          <p className="text-gray-400 text-sm">No hold requests yet.</p>
+        ) : (
+          <ul className="space-y-3">
+            {holds.map((h) => (
+              <li
+                key={h.id}
+                className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+              >
+                <div>
+                  <p className="font-semibold">{h.title}</p>
+                  <p className="text-sm text-gray-400">
+                    {h.author || "Unknown author"} · {h.status}
+                    {h.note ? ` · “${h.note}”` : ""}
+                  </p>
+                </div>
+                {h.status === "pending" && (
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => updateHold(h.id, "approved")}
+                      className="text-sm bg-[#D4AF37] text-black px-3 py-1.5 rounded font-medium"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateHold(h.id, "rejected")}
+                      className="text-sm border border-gray-600 px-3 py-1.5 rounded"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateHold(h.id, "fulfilled")}
+                      className="text-sm border border-gray-600 px-3 py-1.5 rounded"
+                    >
+                      Fulfilled
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="mb-12">
         <h2 className="text-xl font-semibold mb-4 text-[#D4AF37]">

@@ -8,6 +8,7 @@ import libraryRoutes from "./routes/library.routes.js";
 import publicRoutes from "./routes/public.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import onboardingRoutes from "./routes/onboarding.routes.js";
+import readerRoutes from "./routes/reader.routes.js";
 
 
 const app = express();
@@ -59,6 +60,7 @@ app.use("/api/library", libraryRoutes);
 app.use("/api/library", uploadRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/library", onboardingRoutes);
+app.use("/api/reader", readerRoutes);
 
 
 /* ============================

@@ -111,6 +111,7 @@ function groupIntoEditions(results) {
     if (book.isbn) g.isbns.add(book.isbn);
     g.copies.push({
       id: book.id,
+      library_id: book.library_id ?? null,
       library_name: book.library_name,
       distance: book.distance,
       available: book.available !== false,
@@ -357,6 +358,31 @@ export async function searchBooks(req, res) {
       return (b.rank_score || 0) - (a.rank_score || 0);
     });
 
+    // Attach recent “I found it” counts (best-effort; skip if table missing)
+    try {
+      const titles = [...new Set(editions.map((e) => e.title).filter(Boolean))];
+      if (titles.length) {
+        const since = new Date(
+          Date.now() - 90 * 24 * 60 * 60 * 1000
+        ).toISOString();
+        const { data: finds } = await supabase
+          .from("book_finds")
+          .select("title")
+          .in("title", titles.slice(0, 40))
+          .gte("created_at", since);
+        const counts = {};
+        for (const f of finds || []) {
+          const t = f.title;
+          counts[t] = (counts[t] || 0) + 1;
+        }
+        for (const e of editions) {
+          e.found_count = counts[e.title] || 0;
+        }
+      }
+    } catch {
+      /* book_finds may not exist yet */
+    }
+
     await supabase
       .from("analytics")
       .insert({
@@ -574,5 +600,68 @@ export async function trackClick(req, res) {
   } catch (err) {
     console.error("trackClick:", err);
     res.status(500).json({ error: "Click track failed" });
+  }
+}
+
+/**
+ * GET /api/books/similar?title=&author=&limit=
+ * Lightweight “books like this” — same author + title-token overlap.
+ */
+export async function similarBooks(req, res) {
+  const title = sanitize(req.query.title || "");
+  const author = sanitize(req.query.author || "");
+  const limit = Math.min(Number(req.query.limit) || 6, 12);
+
+  if (!title && !author) {
+    return res.status(400).json({ error: "title or author required" });
+  }
+
+  try {
+    const tokens = title
+      .split(" ")
+      .filter((t) => t.length > 3)
+      .slice(0, 4);
+
+    let query = supabase
+      .from("books")
+      .select("title, author, available, libraries(name, latitude, longitude)")
+      .limit(80);
+
+    if (author) {
+      query = query.ilike("author", `%${author}%`);
+    } else if (tokens.length) {
+      query = query.or(tokens.map((t) => `title.ilike.%${t}%`).join(","));
+    } else {
+      query = query.ilike("title", `%${title.slice(0, 8)}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const seen = new Set();
+    const out = [];
+    for (const b of data || []) {
+      if (!b.title || !b.libraries) continue;
+      const key = b.title.toLowerCase();
+      if (key === title.toLowerCase()) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        title: b.title,
+        author: b.author,
+        library_name: b.libraries.name,
+        available: b.available !== false,
+        reason: author &&
+          (b.author || "").toLowerCase().includes(author.toLowerCase())
+          ? "Same author"
+          : "Related title",
+      });
+      if (out.length >= limit) break;
+    }
+
+    res.json(out);
+  } catch (err) {
+    console.error("similarBooks:", err);
+    res.status(500).json({ error: "Similar search failed" });
   }
 }

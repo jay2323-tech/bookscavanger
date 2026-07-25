@@ -85,6 +85,9 @@ export default function Navbar() {
           <Link href="/search" className={linkClass("/search")}>
             Find books
           </Link>
+          <Link href="/plan" className={linkClass("/plan")}>
+            Book run
+          </Link>
           <Link href="/about" className={linkClass("/about")}>
             About
           </Link>

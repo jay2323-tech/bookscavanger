@@ -13,6 +13,9 @@ import SearchFilters, {
   type SearchFiltersState,
 } from "../components/SearchFilters";
 import TrendingNearYou from "../components/TrendingNearYou";
+import { addToRun } from "@/app/lib/bookRun";
+import { supabase } from "@/app/lib/supabaseClient";
+import Link from "next/link";
 
 function libraryKeyFromEdition(e: Edition) {
   return `${e.library_name}|${e.latitude}|${e.longitude}`;
@@ -21,9 +24,15 @@ function libraryKeyFromEdition(e: Edition) {
 export default function SearchClient() {
   const params = useSearchParams();
   const initialQuery = params.get("q") || "";
+  const similarTitle = params.get("similar") || "";
 
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<Edition[]>([]);
+  const [similar, setSimilar] = useState<
+    { title: string; author: string; reason: string }[]
+  >([]);
+  const [runToast, setRunToast] = useState("");
+  const [alertMsg, setAlertMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fuzzyNote, setFuzzyNote] = useState<string | null>(null);
@@ -193,6 +202,62 @@ export default function SearchClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!similarTitle && !query) {
+      setSimilar([]);
+      return;
+    }
+    const title = similarTitle || results[0]?.title;
+    const author = results[0]?.author || "";
+    if (!title) return;
+
+    fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/books/similar?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`
+    )
+      .then((r) => r.json())
+      .then((d) => setSimilar(Array.isArray(d) ? d : []))
+      .catch(() => setSimilar([]));
+  }, [similarTitle, results, query]);
+
+  const createAlert = async () => {
+    setAlertMsg("");
+    const q = query.trim();
+    if (!q) return;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setAlertMsg("Login required to create an alert");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/reader/alerts`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              query: q,
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              radius_km: Number(filters.radius) || 25,
+            }),
+          }
+        );
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Alert failed");
+        setAlertMsg("Alert saved — check your dashboard for matches");
+      } catch (e: any) {
+        setAlertMsg(e.message || "Alert failed");
+      }
+    });
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
       <h1
@@ -218,12 +283,56 @@ export default function SearchClient() {
       <button
         type="button"
         onClick={() => fetchBooks()}
-        className="mt-3 text-sm text-[#D4AF37] hover:underline"
+        className="mt-3 text-sm text-[#D4AF37] hover:underline mr-4"
       >
         Apply filters
       </button>
+      <button
+        type="button"
+        onClick={createAlert}
+        className="mt-3 text-sm text-slate-300 hover:text-[#D4AF37] underline-offset-2 hover:underline"
+      >
+        Alert me when this is nearby
+      </button>
+      <Link
+        href="/plan"
+        className="mt-3 ml-4 text-sm text-[#D4AF37] hover:underline"
+      >
+        Book-run planner
+      </Link>
+      {runToast && (
+        <p className="mt-2 text-sm text-green-400">{runToast}</p>
+      )}
+      {alertMsg && (
+        <p className="mt-2 text-sm text-amber-200">{alertMsg}</p>
+      )}
 
       {!initialQuery && !results.length && !loading && <TrendingNearYou />}
+
+      {similar.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-lg text-[#D4AF37] mb-3">Books like this</h2>
+          <ul className="grid sm:grid-cols-2 gap-2">
+            {similar.map((s) => (
+              <li key={s.title}>
+                <button
+                  type="button"
+                  className="w-full text-left rounded-lg border border-slate-700 px-3 py-2 hover:border-[#D4AF37]"
+                  onClick={() => {
+                    setQuery(s.title);
+                    fetchBooks(s.title);
+                  }}
+                >
+                  <p className="font-medium">{s.title}</p>
+                  <p className="text-xs text-slate-400">
+                    {s.author} · {s.reason}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {fuzzyNote && (
         <p className="mt-4 text-sm text-amber-300/90">{fuzzyNote}</p>
@@ -252,6 +361,11 @@ export default function SearchClient() {
                 selected={selectedLibraryId === id}
                 onSelect={selectLibrary}
                 onEngage={() => trackClick(edition)}
+                onAddToRun={(stop) => {
+                  addToRun(stop);
+                  setRunToast(`Added “${stop.title}” to book run`);
+                  setTimeout(() => setRunToast(""), 2500);
+                }}
               />
             </div>
           );

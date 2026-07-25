@@ -52,11 +52,11 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 
 ## P2 — Magical conversion
 
-- [ ] **BS-030** Semantic search (“books like Atomic Habits”)
-- [ ] **BS-031** Hold / reserve request to library
-- [ ] **BS-032** Book-run planner (multi-library trip)
-- [ ] **BS-033** Alerts: notify when title appears nearby
-- [ ] **BS-034** “I found it” trust signal on results
+- [x] **BS-030** Lightweight “books like this” (same author / title tokens)
+- [x] **BS-031** Hold / reserve request to library
+- [x] **BS-032** Book-run planner (multi-library trip)
+- [x] **BS-033** Alerts: notify when title appears nearby
+- [x] **BS-034** “I found it” trust signal on results
 
 ---
 
@@ -69,10 +69,10 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 
 ---
 
-## Suggested next 2 weeks
+## Suggested next
 
-1. **BS-015** — Finish Vercel + Render on monorepo  
-2. **BS-010 + BS-012** — Autocomplete & filters  
-3. **BS-011** — Typo tolerance  
-4. **BS-013** — Covers  
-5. **BS-020** — Ranking v2  
+1. Run `database/migrations/003_p2_holds_finds_alerts.sql` in Supabase  
+2. **BS-015** — Finish Vercel + Render on monorepo  
+3. **BS-013** — Covers + metadata enrich (deferred)  
+4. **BS-022** — ISBN barcode scanner (deferred)  
+5. **P3** — Meilisearch / PWA / ILS when ready 
