@@ -30,12 +30,12 @@
 }
 
 :root {
-  --bs-paper: #f2f4f7;
+  --bs-paper: #f7f8fa;
   --bs-ink: #142033;
   --bs-muted: #5b6577;
-  --bs-line: #d5dbe5;
+  --bs-line: #e2e6ee;
   --bs-teal: #0f766e;
-  --bs-teal-soft: #d9f0ed;
+  --bs-teal-soft: #e6f5f3;
   --bs-gold: #c9a227;
   --bs-gold-ink: #1a1608;
   --bs-surface: #ffffff;
@@ -66,13 +66,15 @@
   }
 }
 
-/* Subtle map-grid atmosphere */
-.bs-paper-grid {
+/* Soft field wash — no grid noise */
+.bs-paper-grid,
+.bs-field {
   background-color: var(--bs-paper);
   background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--bs-line) 55%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--bs-line) 55%, transparent) 1px, transparent 1px);
-  background-size: 28px 28px;
+    radial-gradient(ellipse 90% 70% at 0% -10%, rgba(15, 118, 110, 0.09), transparent 55%),
+    radial-gradient(ellipse 70% 55% at 100% 0%, rgba(201, 162, 39, 0.08), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(15, 118, 110, 0.04), transparent 55%);
+  background-attachment: fixed;
 }
 
 .bs-fade-in {

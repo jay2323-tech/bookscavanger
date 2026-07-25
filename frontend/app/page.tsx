@@ -13,25 +13,48 @@ export default function HomePage() {
 
   return (
     <main className="relative overflow-hidden bg-bs-paper">
-      {/* Full-bleed hero visual plane */}
+      {/* Full-bleed hero — soft sky wash + shelf silhouette plane */}
       <section className="relative min-h-[calc(100vh-4.5rem)] flex items-end md:items-center">
         <div
           aria-hidden
           className="absolute inset-0"
           style={{
-            backgroundImage: `
-              linear-gradient(105deg, rgba(242,244,247,0.97) 0%, rgba(242,244,247,0.88) 38%, rgba(242,244,247,0.25) 62%, transparent 78%),
-              repeating-linear-gradient(90deg, #0f766e 0px, #0f766e 10px, #142033 10px, #142033 14px, #c9a227 14px, #c9a227 18px, #5b6577 18px, #5b6577 22px, transparent 22px, transparent 36px),
-              linear-gradient(180deg, #e8eef2 0%, #d5dbe5 100%)
+            background: `
+              linear-gradient(105deg, #f7f8fa 0%, #f7f8fa 42%, rgba(247,248,250,0.55) 68%, rgba(247,248,250,0.15) 100%),
+              linear-gradient(180deg, #eef6f5 0%, #f7f8fa 45%, #f3f0e8 100%)
             `,
-            backgroundSize: "auto, 180px 100%, auto",
-            backgroundPosition: "0 0, right center, 0 0",
-            backgroundRepeat: "no-repeat, repeat-x, no-repeat",
           }}
         />
+        {/* Soft book-spine plane on the right (desktop) */}
         <div
           aria-hidden
-          className="absolute inset-0 opacity-40 bs-paper-grid"
+          className={`hidden lg:block absolute inset-y-0 right-0 w-[48%] transition-all duration-1000 delay-150 ease-out ${
+            visible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-6"
+          }`}
+          style={{
+            background: `
+              radial-gradient(ellipse 80% 70% at 70% 40%, rgba(15,118,110,0.14), transparent 70%),
+              radial-gradient(ellipse 50% 45% at 85% 70%, rgba(201,162,39,0.16), transparent 65%),
+              linear-gradient(160deg, #dce9e7 0%, #e8eef2 40%, #ddd6c8 100%)
+            `,
+            maskImage:
+              "linear-gradient(90deg, transparent 0%, black 22%, black 100%)",
+            WebkitMaskImage:
+              "linear-gradient(90deg, transparent 0%, black 22%, black 100%)",
+          }}
+        />
+        {/* Quiet horizontal shelf lines */}
+        <div
+          aria-hidden
+          className="hidden lg:block absolute inset-y-[18%] right-0 w-[42%] opacity-30"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(180deg, transparent 0, transparent 52px, rgba(20,32,51,0.12) 52px, rgba(20,32,51,0.12) 53px)",
+            maskImage:
+              "linear-gradient(90deg, transparent 0%, black 30%, black 100%)",
+            WebkitMaskImage:
+              "linear-gradient(90deg, transparent 0%, black 30%, black 100%)",
+          }}
         />
 
         <div
@@ -60,7 +83,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/for-libraries"
-              className="inline-flex items-center justify-center border border-bs-line bg-bs-surface text-bs-ink px-7 py-3.5 rounded-lg font-medium hover:border-bs-teal hover:text-bs-teal transition"
+              className="inline-flex items-center justify-center border border-bs-line bg-bs-surface/90 text-bs-ink px-7 py-3.5 rounded-lg font-medium hover:border-bs-teal hover:text-bs-teal transition"
             >
               For libraries
             </Link>
@@ -120,7 +143,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="relative border-t border-bs-line px-6 md:px-10 py-16 bg-bs-paper">
+      <section className="relative border-t border-bs-line px-6 md:px-10 py-16 bs-field">
         <div className="max-w-3xl">
           <h2
             className="text-3xl text-bs-ink mb-3"
