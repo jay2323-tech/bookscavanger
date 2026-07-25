@@ -1,0 +1,41 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Env / secrets — never commit
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Builds
+.next/
+**/dist/
+**/build/
+**/.turbo/
+**/tsconfig.tsbuildinfo
+
+# Logs / coverage
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
+
+# Uploads / local data
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# IDE
+.idea/
+*.swp
+.vscode/*
+!.vscode/launch.json
+
+# Cursor / local
+.cursor/

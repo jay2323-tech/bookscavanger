@@ -1,0 +1,18 @@
+.env
+.DS_Store
+.env
+node_modules/
+.env
+.next/
+dist/
+# frontend
+frontend/node_modules/
+frontend/.next/
+frontend/.env*
+# env files
+.env*
+frontend/.env*
+
+# next.js types (frontend only)
+next-env.d.ts
+frontend/next-env.d.ts
