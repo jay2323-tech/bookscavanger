@@ -30,7 +30,7 @@
 }
 
 :root {
-  --bs-paper: #f7f8fa;
+  --bs-paper: #eef1f5;
   --bs-ink: #142033;
   --bs-muted: #5b6577;
   --bs-line: #e2e6ee;
@@ -71,9 +71,9 @@
 .bs-field {
   background-color: var(--bs-paper);
   background-image:
-    radial-gradient(ellipse 90% 70% at 0% -10%, rgba(15, 118, 110, 0.09), transparent 55%),
-    radial-gradient(ellipse 70% 55% at 100% 0%, rgba(201, 162, 39, 0.08), transparent 50%),
-    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(15, 118, 110, 0.04), transparent 55%);
+    radial-gradient(ellipse 90% 70% at 0% -10%, rgba(15, 118, 110, 0.16), transparent 55%),
+    radial-gradient(ellipse 70% 55% at 100% 0%, rgba(201, 162, 39, 0.14), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(15, 118, 110, 0.08), transparent 55%);
   background-attachment: fixed;
 }
 

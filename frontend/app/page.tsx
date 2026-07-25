@@ -20,8 +20,8 @@ export default function HomePage() {
           className="absolute inset-0"
           style={{
             background: `
-              linear-gradient(105deg, #f7f8fa 0%, #f7f8fa 42%, rgba(247,248,250,0.55) 68%, rgba(247,248,250,0.15) 100%),
-              linear-gradient(180deg, #eef6f5 0%, #f7f8fa 45%, #f3f0e8 100%)
+              linear-gradient(105deg, #eef1f5 0%, #eef1f5 42%, rgba(238,241,245,0.55) 68%, rgba(238,241,245,0.15) 100%),
+              linear-gradient(180deg, #dcecea 0%, #e8ecef 45%, #e6dfd0 100%)
             `,
           }}
         />
@@ -33,9 +33,9 @@ export default function HomePage() {
           }`}
           style={{
             background: `
-              radial-gradient(ellipse 80% 70% at 70% 40%, rgba(15,118,110,0.14), transparent 70%),
-              radial-gradient(ellipse 50% 45% at 85% 70%, rgba(201,162,39,0.16), transparent 65%),
-              linear-gradient(160deg, #dce9e7 0%, #e8eef2 40%, #ddd6c8 100%)
+              radial-gradient(ellipse 80% 70% at 70% 40%, rgba(15,118,110,0.22), transparent 70%),
+              radial-gradient(ellipse 50% 45% at 85% 70%, rgba(201,162,39,0.22), transparent 65%),
+              linear-gradient(160deg, #c9ddd9 0%, #d5dde6 40%, #d0c6b0 100%)
             `,
             maskImage:
               "linear-gradient(90deg, transparent 0%, black 22%, black 100%)",
