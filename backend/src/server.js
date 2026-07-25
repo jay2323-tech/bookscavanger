@@ -17,11 +17,21 @@ const app = express();
    ============================ */
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://lexoria-frontend.vercel.app",
-      "https://lexoria-frontend-phi.vercel.app",
-    ],
+    origin: (origin, callback) => {
+      const allowed = [
+        "http://localhost:3000",
+        "https://lexoria-frontend.vercel.app",
+        "https://lexoria-frontend-phi.vercel.app",
+      ];
+      if (
+        !origin ||
+        allowed.includes(origin) ||
+        /\.vercel\.app$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
   })

@@ -29,11 +29,11 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 
 ## P0 — Search that feels alive
 
-- [ ] **BS-010** Instant autocomplete (title/author/ISBN typeahead)
-- [ ] **BS-011** Typo-tolerant search (`pg_trgm` or Meilisearch)
-- [ ] **BS-012** Filters: radius, available-only, library, sort
+- [x] **BS-010** Instant autocomplete (title/author/ISBN typeahead)
+- [x] **BS-011** Typo-tolerant search (`pg_trgm` or Meilisearch)
+- [x] **BS-012** Filters: radius, available-only, library, sort
 - [ ] **BS-013** Book covers + metadata enrich (Open Library)
-- [ ] **BS-014** Did-you-mean + zero-result recovery
+- [x] **BS-014** Did-you-mean + zero-result recovery
 - [ ] **BS-015** Deploy monorepo (`jay2323-tech/bookscavanger`) to Render + Vercel
 
 ---

@@ -7,6 +7,9 @@ import EmptyState from "../components/EmptyState";
 import LibraryMap from "../components/LibraryMap";
 import LoadingSkeleton from "../components/LoadingSkeleton";
 import SearchBar from "../components/SearchBar";
+import SearchFilters, {
+  type SearchFiltersState,
+} from "../components/SearchFilters";
 
 type SearchBook = {
   title: string;
@@ -26,6 +29,12 @@ export default function SearchClient() {
   const [results, setResults] = useState<SearchBook[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fuzzyNote, setFuzzyNote] = useState<string | null>(null);
+  const [filters, setFilters] = useState<SearchFiltersState>({
+    radius: "",
+    availableOnly: false,
+    sort: "distance",
+  });
 
   const mapLibraries = useMemo(() => {
     const seen = new Set<string>();
@@ -50,10 +59,13 @@ export default function SearchClient() {
       }));
   }, [results]);
 
-  const fetchBooks = async () => {
-    if (!query.trim()) return;
+  const fetchBooks = async (overrideQuery?: string) => {
+    const q = (overrideQuery ?? query).trim();
+    if (!q) return;
+
     setLoading(true);
     setError("");
+    setFuzzyNote(null);
 
     if (!navigator.geolocation) {
       setError("Location access is required");
@@ -64,15 +76,26 @@ export default function SearchClient() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const res = await fetch(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/books/search?q=${encodeURIComponent(
-              query.trim()
-            )}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
+          const url = new URL(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/books/search`
           );
+          url.searchParams.set("q", q);
+          url.searchParams.set("lat", String(pos.coords.latitude));
+          url.searchParams.set("lng", String(pos.coords.longitude));
+          url.searchParams.set("sort", filters.sort);
+          if (filters.radius) url.searchParams.set("radius", filters.radius);
+          if (filters.availableOnly) url.searchParams.set("available", "true");
 
+          const res = await fetch(url.toString());
           if (!res.ok) throw new Error("Failed");
 
-          const data = await res.json();
+          const payload = await res.json();
+          const data = Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload.results)
+              ? payload.results
+              : [];
+          const meta = payload.meta;
 
           const mapped: SearchBook[] = data.map((b: any) => ({
             title: b.title,
@@ -85,6 +108,10 @@ export default function SearchClient() {
           }));
 
           setResults(mapped);
+
+          if (meta?.fuzzy && meta?.suggestion) {
+            setFuzzyNote(`Showing close matches for “${meta.suggestion}”`);
+          }
         } catch {
           setError("Failed to fetch books");
         } finally {
@@ -99,7 +126,7 @@ export default function SearchClient() {
   };
 
   useEffect(() => {
-    if (initialQuery) fetchBooks();
+    if (initialQuery) fetchBooks(initialQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -112,7 +139,7 @@ export default function SearchClient() {
         Find books near you
       </h1>
       <p className="text-gray-400 mb-6">
-        Search by title, author, or ISBN. Results are sorted by distance.
+        Search by title, author, or ISBN. Autocomplete and filters included.
       </p>
 
       <SearchBar
@@ -122,12 +149,33 @@ export default function SearchClient() {
         loading={loading}
       />
 
+      <SearchFilters filters={filters} setFilters={setFilters} />
+
+      <button
+        type="button"
+        onClick={() => fetchBooks()}
+        className="mt-3 text-sm text-[#D4AF37] hover:underline"
+      >
+        Apply filters
+      </button>
+
+      {fuzzyNote && (
+        <p className="mt-4 text-sm text-amber-300/90">{fuzzyNote}</p>
+      )}
+
       <div className="mt-8 space-y-4">
         {loading && <LoadingSkeleton />}
         {!loading && error && (
           <p className="text-red-400 text-center">{error}</p>
         )}
-        {!loading && !error && results.length === 0 && <EmptyState />}
+        {!loading && !error && results.length === 0 && (
+          <EmptyState
+            onTrySuggestion={(s) => {
+              setQuery(s);
+              fetchBooks(s);
+            }}
+          />
+        )}
 
         {results.map((book, i) => (
           <BookResultCard key={i} book={book} />
