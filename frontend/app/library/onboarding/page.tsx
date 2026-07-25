@@ -79,29 +79,29 @@ export default function LibrarianOnboardingPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#0F172A] px-4">
-            <div className="w-full max-w-md bg-gray-900 p-8 rounded-xl text-white border border-gray-800">
-                <h1 className="text-2xl font-bold text-[#D4AF37] mb-4 text-center">
+        <div className="flex items-center justify-center py-20 text-bs-muted bg-bs-paper px-4">
+            <div className="w-full max-w-md bg-bs-surface p-8 rounded-xl text-bs-ink border border-bs-line">
+                <h1 className="text-2xl font-bold text-bs-teal mb-4 text-center">
                     Librarian Onboarding
                 </h1>
 
                 <input
                     placeholder="Library Name"
-                    className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+                    className="w-full mb-4 px-4 py-3 rounded bg-bs-paper"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
 
                 <input
                     placeholder="Contact Email (optional)"
-                    className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+                    className="w-full mb-4 px-4 py-3 rounded bg-bs-paper"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
 
                 <input
                     placeholder="Latitude"
-                    className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+                    className="w-full mb-4 px-4 py-3 rounded bg-bs-paper"
                     value={form.latitude}
                     onChange={(e) =>
                         setForm({ ...form, latitude: e.target.value })
@@ -110,7 +110,7 @@ export default function LibrarianOnboardingPage() {
 
                 <input
                     placeholder="Longitude"
-                    className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+                    className="w-full mb-4 px-4 py-3 rounded bg-bs-paper"
                     value={form.longitude}
                     onChange={(e) =>
                         setForm({ ...form, longitude: e.target.value })
@@ -120,7 +120,7 @@ export default function LibrarianOnboardingPage() {
                 <div className="grid grid-cols-2 gap-3 mb-4">
                     <input
                         type="time"
-                        className="w-full px-4 py-3 rounded bg-gray-800"
+                        className="w-full px-4 py-3 rounded bg-bs-paper"
                         value={form.opens_at}
                         onChange={(e) =>
                             setForm({ ...form, opens_at: e.target.value })
@@ -128,7 +128,7 @@ export default function LibrarianOnboardingPage() {
                     />
                     <input
                         type="time"
-                        className="w-full px-4 py-3 rounded bg-gray-800"
+                        className="w-full px-4 py-3 rounded bg-bs-paper"
                         value={form.closes_at}
                         onChange={(e) =>
                             setForm({ ...form, closes_at: e.target.value })
@@ -140,13 +140,13 @@ export default function LibrarianOnboardingPage() {
                 </p>
 
                 {error && (
-                    <p className="text-red-400 text-sm mb-3">{error}</p>
+                    <p className="text-bs-danger text-sm mb-3">{error}</p>
                 )}
 
                 <button
                     onClick={handleSubmit}
                     disabled={loading}
-                    className="w-full bg-[#D4AF37] text-black py-3 rounded-lg font-semibold"
+                    className="w-full bg-bs-gold text-bs-gold-ink py-3 rounded-lg font-semibold"
                 >
                     {loading ? "Submitting..." : "Submit for Approval"}
                 </button>

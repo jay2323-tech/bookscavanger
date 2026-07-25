@@ -98,7 +98,7 @@ export default function SearchBar({
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => suggestions.length > 0 && setOpen(true)}
             onKeyDown={onKeyDown}
-            className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
+            className="w-full rounded-lg bg-bs-surface border border-bs-line px-4 py-3 pr-12 text-bs-ink placeholder:text-bs-muted/70 focus:outline-none focus:ring-2 focus:ring-bs-teal/35"
             autoComplete="off"
             inputMode="search"
           />
@@ -107,7 +107,7 @@ export default function SearchBar({
             title="Scan ISBN barcode"
             aria-label="Scan ISBN barcode"
             onClick={() => setScanOpen(true)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-400 hover:text-[#D4AF37] hover:bg-slate-700/80"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-bs-muted hover:text-bs-teal hover:bg-bs-teal-soft"
           >
             <svg
               width="20"
@@ -127,20 +127,20 @@ export default function SearchBar({
           </button>
 
           {open && suggestions.length > 0 && (
-            <ul className="absolute z-20 mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 overflow-hidden shadow-lg">
+            <ul className="absolute z-20 mt-2 w-full rounded-lg border border-bs-line bg-bs-surface overflow-hidden shadow-lg">
               {suggestions.map((s, i) => (
                 <li key={`${s.type}-${s.label}`}>
                   <button
                     type="button"
                     className={`w-full text-left px-4 py-3 text-sm ${
-                      i === active ? "bg-slate-800" : "hover:bg-slate-800"
+                      i === active ? "bg-bs-paper" : "hover:bg-bs-paper"
                     }`}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => pick(s.label)}
                   >
-                    <span className="font-medium text-[#F8F5F0]">{s.label}</span>
+                    <span className="font-medium text-bs-ink">{s.label}</span>
                     {s.secondary && (
-                      <span className="block text-xs text-slate-400 mt-0.5">
+                      <span className="block text-xs text-bs-muted mt-0.5">
                         {s.type === "author" ? "Author" : s.secondary}
                       </span>
                     )}
@@ -157,7 +157,7 @@ export default function SearchBar({
             onSearch();
           }}
           disabled={loading}
-          className="rounded-lg bg-[#D4AF37] text-slate-900 px-6 py-3 font-semibold hover:opacity-90 disabled:opacity-50"
+          className="rounded-lg bg-bs-gold text-bs-gold-ink px-6 py-3 font-semibold hover:brightness-95 disabled:opacity-50"
         >
           {loading ? "Searching..." : "Search"}
         </button>

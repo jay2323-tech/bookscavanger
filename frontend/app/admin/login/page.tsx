@@ -28,24 +28,32 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#0F172A] text-white">
-      <div className="bg-white text-black p-8 rounded-xl w-96">
-        <h2 className="text-2xl font-bold mb-6 text-center">
-          Admin Login
+    <main className="bs-paper-grid min-h-[calc(100vh-4.5rem)] flex items-center justify-center px-4">
+      <div className="bg-bs-surface border border-bs-line text-bs-ink p-8 rounded-xl w-full max-w-sm shadow-sm">
+        <h2
+          className="text-2xl font-semibold mb-6 text-center"
+          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+        >
+          Admin login
         </h2>
 
         {error && (
-          <p className="text-red-500 text-sm mb-3 text-center">
-            {error}
-          </p>
+          <p className="text-bs-danger text-sm mb-3 text-center">{error}</p>
         )}
 
         <button
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full bg-black text-white p-2 rounded"
+          className="w-full bg-bs-gold text-bs-gold-ink py-3 rounded-lg font-semibold hover:brightness-95"
         >
           {loading ? "Redirecting..." : "Continue with Google"}
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="w-full mt-3 text-sm text-bs-muted hover:text-bs-teal"
+        >
+          Back to home
         </button>
       </div>
     </main>

@@ -12,118 +12,107 @@ export default function HomePage() {
   }, []);
 
   return (
-    <main className="relative overflow-hidden">
-      {/* Atmospheric background */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 60% at 20% 20%, rgba(212,175,55,0.14), transparent 55%), radial-gradient(ellipse 70% 50% at 90% 10%, rgba(56,189,248,0.08), transparent 50%), linear-gradient(180deg, #0B1224 0%, #0F172A 45%, #0B1224 100%)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.07]"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23D4AF37' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
-        }}
-      />
-
-      {/* HERO — brand first, one job */}
-      <section className="relative min-h-[calc(100vh-73px)] flex items-center px-6 md:px-10">
+    <main className="relative overflow-hidden bg-bs-paper">
+      {/* Full-bleed hero visual plane */}
+      <section className="relative min-h-[calc(100vh-4.5rem)] flex items-end md:items-center">
         <div
-          className={`max-w-3xl transition-all duration-1000 ease-out ${
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `
+              linear-gradient(105deg, rgba(242,244,247,0.97) 0%, rgba(242,244,247,0.88) 38%, rgba(242,244,247,0.25) 62%, transparent 78%),
+              repeating-linear-gradient(90deg, #0f766e 0px, #0f766e 10px, #142033 10px, #142033 14px, #c9a227 14px, #c9a227 18px, #5b6577 18px, #5b6577 22px, transparent 22px, transparent 36px),
+              linear-gradient(180deg, #e8eef2 0%, #d5dbe5 100%)
+            `,
+            backgroundSize: "auto, 180px 100%, auto",
+            backgroundPosition: "0 0, right center, 0 0",
+            backgroundRepeat: "no-repeat, repeat-x, no-repeat",
+          }}
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-40 bs-paper-grid"
+        />
+
+        <div
+          className={`relative z-10 px-6 md:px-10 pb-16 md:pb-0 md:py-24 max-w-2xl transition-all duration-1000 ease-out ${
             visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
           <p
-            className="text-[#D4AF37] text-5xl sm:text-7xl md:text-8xl font-semibold tracking-tight mb-6"
+            className="text-bs-ink text-5xl sm:text-6xl md:text-7xl font-semibold tracking-tight mb-5"
             style={{ fontFamily: "var(--font-display), Georgia, serif" }}
           >
-            BookScavenger
+            Book<span className="text-bs-gold">Scavenger</span>
           </p>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl text-[#F8F5F0] font-medium leading-snug mb-4 max-w-xl">
+          <h1 className="text-xl sm:text-2xl md:text-3xl text-bs-ink font-medium leading-snug mb-3 max-w-lg">
             Physical books, found like online search.
           </h1>
-          <p className="text-gray-400 text-lg mb-10 max-w-lg">
-            Search by title, author, or ISBN — BookScavenger shows the nearest
-            libraries that have the book on the shelf.
+          <p className="text-bs-muted text-base sm:text-lg mb-8 max-w-md">
+            Search a title — see the nearest library that has it on the shelf.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Link
               href="/search"
-              className="inline-flex items-center justify-center bg-[#D4AF37] text-black px-7 py-3.5 rounded-lg font-semibold hover:opacity-90 transition"
+              className="inline-flex items-center justify-center bg-bs-gold text-bs-gold-ink px-7 py-3.5 rounded-lg font-semibold hover:brightness-95 transition"
             >
               Find a book
             </Link>
             <Link
               href="/for-libraries"
-              className="inline-flex items-center justify-center border border-gray-600 text-gray-200 px-7 py-3.5 rounded-lg font-medium hover:border-[#D4AF37] hover:text-[#D4AF37] transition"
+              className="inline-flex items-center justify-center border border-bs-line bg-bs-surface text-bs-ink px-7 py-3.5 rounded-lg font-medium hover:border-bs-teal hover:text-bs-teal transition"
             >
-              List your library
+              For libraries
             </Link>
           </div>
         </div>
-
-        {/* Visual plane — shelf / atmosphere, not a card */}
-        <div
-          aria-hidden
-          className={`hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 w-[42vw] max-w-xl h-[70vh] transition-all duration-1200 delay-200 ease-out ${
-            visible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-8"
-          }`}
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(212,175,55,0.25) 0%, rgba(15,23,42,0.2) 40%, rgba(30,58,95,0.5) 100%), repeating-linear-gradient(90deg, transparent, transparent 48px, rgba(212,175,55,0.08) 48px, rgba(212,175,55,0.08) 50px)",
-            maskImage:
-              "linear-gradient(90deg, transparent 0%, black 18%, black 100%)",
-            WebkitMaskImage:
-              "linear-gradient(90deg, transparent 0%, black 18%, black 100%)",
-          }}
-        />
       </section>
 
-      {/* How it works — one job */}
-      <section className="relative border-t border-gray-800 px-6 md:px-10 py-24">
+      <section className="relative border-t border-bs-line px-6 md:px-10 py-20 md:py-24 bg-bs-surface">
         <div className="max-w-3xl">
           <h2
-            className="text-3xl md:text-4xl text-[#D4AF37] mb-4"
+            className="text-3xl md:text-4xl text-bs-ink mb-3"
             style={{ fontFamily: "var(--font-display), Georgia, serif" }}
           >
             How it works
           </h2>
-          <p className="text-gray-400 mb-12 max-w-xl">
-            Three steps between you and a book on a real shelf nearby.
+          <p className="text-bs-muted mb-12 max-w-xl">
+            Three steps between you and a book on a real shelf.
           </p>
           <ol className="space-y-10">
             {[
               {
                 n: "01",
-                t: "Search",
-                d: "Enter a title, author, or ISBN. We use your location to rank results.",
+                t: "Search or scan",
+                d: "Title, author, or ISBN — use the camera for barcodes.",
               },
               {
                 n: "02",
-                t: "See nearby libraries",
-                d: "Matches appear sorted by distance, with availability from each library.",
+                t: "See nearby copies",
+                d: "Editions across libraries, ranked by distance and stock.",
               },
               {
                 n: "03",
-                t: "Go get the book",
-                d: "Open the map, pick a library, and head over — no endless online browsing.",
+                t: "Get directions",
+                d: "Open Maps, plan a book run, or request a hold.",
               },
-            ].map((step) => (
-              <li key={step.n} className="flex gap-6 items-start">
+            ].map((step, i) => (
+              <li
+                key={step.n}
+                className="flex gap-6 items-start bs-fade-in"
+                style={{ animationDelay: `${i * 0.08}s` }}
+              >
                 <span
-                  className="text-[#D4AF37]/40 text-2xl font-semibold tabular-nums"
+                  className="text-bs-teal/50 text-2xl font-semibold tabular-nums"
                   style={{ fontFamily: "var(--font-display), Georgia, serif" }}
                 >
                   {step.n}
                 </span>
                 <div>
-                  <h3 className="text-xl font-semibold mb-1">{step.t}</h3>
-                  <p className="text-gray-400 max-w-md">{step.d}</p>
+                  <h3 className="text-xl font-semibold text-bs-ink mb-1">
+                    {step.t}
+                  </h3>
+                  <p className="text-bs-muted max-w-md">{step.d}</p>
                 </div>
               </li>
             ))}
@@ -131,21 +120,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA strip */}
-      <section className="relative border-t border-gray-800 px-6 md:px-10 py-20">
+      <section className="relative border-t border-bs-line px-6 md:px-10 py-16 bg-bs-paper">
         <div className="max-w-3xl">
           <h2
-            className="text-3xl text-[#F8F5F0] mb-4"
+            className="text-3xl text-bs-ink mb-3"
             style={{ fontFamily: "var(--font-display), Georgia, serif" }}
           >
             Ready to look?
           </h2>
-          <p className="text-gray-400 mb-8">
-            Start with a search — or bring your library onto BookScavenger.
+          <p className="text-bs-muted mb-8">
+            Start with a search — or list your library on BookScavenger.
           </p>
           <Link
             href="/search"
-            className="inline-flex bg-[#D4AF37] text-black px-7 py-3.5 rounded-lg font-semibold hover:opacity-90 transition"
+            className="inline-flex bg-bs-gold text-bs-gold-ink px-7 py-3.5 rounded-lg font-semibold hover:brightness-95 transition"
           >
             Go to search
           </Link>

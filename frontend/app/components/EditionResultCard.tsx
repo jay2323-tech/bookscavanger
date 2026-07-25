@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/app/lib/supabaseClient";
 import BookCover from "./BookCover";
+import StatusDot from "./ui/StatusDot";
+import Button from "./ui/Button";
 
 export type EditionCopy = {
   id?: string | number;
@@ -69,6 +71,7 @@ export default function EditionResultCard({
   onAddToRun,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [msg, setMsg] = useState("");
   const nearest = edition.copies[0];
 
@@ -138,18 +141,23 @@ export default function EditionResultCard({
     }
   };
 
+  const directionsHref =
+    nearest?.latitude != null && nearest?.longitude != null
+      ? `https://www.google.com/maps/dir/?api=1&destination=${nearest.latitude},${nearest.longitude}`
+      : null;
+
   return (
-    <div
-      className={`bg-slate-800 border rounded-xl p-5 transition ${
+    <article
+      className={`bg-bs-surface border rounded-xl p-4 sm:p-5 transition ${
         selected
-          ? "border-[#D4AF37] ring-1 ring-[#D4AF37]/40"
-          : "border-slate-700 hover:border-[#D4AF37]"
+          ? "border-bs-teal ring-1 ring-bs-teal/30"
+          : "border-bs-line hover:border-bs-teal/40"
       }`}
     >
-      <div className="flex justify-between items-start gap-4">
+      <div className="flex gap-4">
         <button
           type="button"
-          className="text-left flex-1 flex gap-4 min-w-0"
+          className="text-left flex gap-4 min-w-0 flex-1"
           onClick={() => {
             onEngage?.();
             if (nearest) onSelect?.(libraryKey(nearest));
@@ -157,24 +165,28 @@ export default function EditionResultCard({
         >
           <BookCover src={edition.cover_url} title={edition.title} />
           <div className="min-w-0">
-            <h3 className="text-xl font-semibold leading-snug">
+            <h3
+              className="text-lg sm:text-xl font-semibold leading-snug text-bs-ink"
+              style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+            >
               {edition.title}
             </h3>
-            <p className="text-slate-400">{edition.author}</p>
+            <p className="text-bs-muted text-sm mt-0.5">{edition.author}</p>
             {(edition.publish_year || edition.subjects?.length) && (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-bs-muted">
                 {edition.publish_year ? String(edition.publish_year) : ""}
                 {edition.publish_year && edition.subjects?.length ? " · " : ""}
                 {edition.subjects?.slice(0, 2).join(" · ")}
               </p>
             )}
-            <p className="mt-2 text-sm text-slate-300">
-              {edition.library_count} librar
-              {edition.library_count === 1 ? "y" : "ies"} · {edition.copy_count}{" "}
-              {edition.copy_count === 1 ? "copy" : "copies"}
-              {edition.best_distance != null
-                ? ` · nearest ${edition.best_distance.toFixed(1)} km`
-                : ""}
+            <p className="mt-2 text-sm text-bs-ink/80">
+              <span className="text-bs-teal font-medium">
+                {edition.best_distance != null
+                  ? `${edition.best_distance.toFixed(1)} km`
+                  : "Distance unknown"}
+              </span>
+              {" · "}
+              {edition.library_name || `${edition.library_count} libraries`}
               {edition.found_count
                 ? ` · ${edition.found_count} found recently`
                 : ""}
@@ -182,80 +194,111 @@ export default function EditionResultCard({
           </div>
         </button>
 
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <span
-            className={`text-sm px-3 py-1 rounded-full ${
-              edition.available
-                ? "bg-green-500/20 text-green-400"
-                : "bg-red-500/20 text-red-400"
-            }`}
-          >
-            {edition.available ? "Available" : "Not Available"}
-          </span>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <StatusDot
+            tone={edition.available ? "ok" : "danger"}
+            label={edition.available ? "In stock" : "Unavailable"}
+          />
           {edition.open_now === true && (
-            <span className="text-xs px-2 py-1 rounded-full bg-sky-500/20 text-sky-300">
-              Open now
-            </span>
+            <StatusDot tone="teal" label="Open now" />
           )}
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => requestHold()}
-          className="text-sm px-3 py-1.5 rounded-lg bg-[#D4AF37] text-black font-medium"
-        >
-          Request hold
-        </button>
-        <button
-          type="button"
-          onClick={() => markFound()}
-          className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200"
-        >
-          I found it
-        </button>
-        {nearest?.latitude != null &&
-          nearest?.longitude != null &&
-          onAddToRun && (
-            <button
-              type="button"
-              onClick={() =>
-                onAddToRun({
-                  title: edition.title,
-                  library_name: nearest.library_name,
-                  latitude: nearest.latitude as number,
-                  longitude: nearest.longitude as number,
-                  distance: nearest.distance,
-                })
-              }
-              className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200"
-            >
-              Add to book run
-            </button>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {directionsHref ? (
+          <a
+            href={directionsHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => onEngage?.()}
+            className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold bg-bs-gold text-bs-gold-ink hover:brightness-95"
+          >
+            Directions
+          </a>
+        ) : (
+          <Button type="button" onClick={() => requestHold()}>
+            Request hold
+          </Button>
+        )}
+
+        <div className="relative">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setMoreOpen((v) => !v)}
+          >
+            More
+          </Button>
+          {moreOpen && (
+            <div className="absolute left-0 mt-1 z-20 w-48 rounded-lg border border-bs-line bg-bs-surface shadow-lg overflow-hidden">
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2.5 text-sm hover:bg-bs-paper"
+                onClick={() => {
+                  setMoreOpen(false);
+                  void requestHold();
+                }}
+              >
+                Request hold
+              </button>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2.5 text-sm hover:bg-bs-paper"
+                onClick={() => {
+                  setMoreOpen(false);
+                  void markFound();
+                }}
+              >
+                I found it
+              </button>
+              {nearest?.latitude != null &&
+                nearest?.longitude != null &&
+                onAddToRun && (
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2.5 text-sm hover:bg-bs-paper"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      onAddToRun({
+                        title: edition.title,
+                        library_name: nearest.library_name,
+                        latitude: nearest.latitude as number,
+                        longitude: nearest.longitude as number,
+                        distance: nearest.distance,
+                      });
+                    }}
+                  >
+                    Add to book run
+                  </button>
+                )}
+              <Link
+                href={`/search?q=${encodeURIComponent(edition.author || edition.title)}&similar=${encodeURIComponent(edition.title)}`}
+                className="block px-3 py-2.5 text-sm hover:bg-bs-paper text-bs-teal"
+                onClick={() => {
+                  setMoreOpen(false);
+                  onEngage?.();
+                }}
+              >
+                Books like this
+              </Link>
+            </div>
           )}
-        <Link
-          href={`/search?q=${encodeURIComponent(edition.author || edition.title)}&similar=${encodeURIComponent(edition.title)}`}
-          className="text-sm px-3 py-1.5 rounded-lg border border-slate-600 text-[#D4AF37]"
-          onClick={() => onEngage?.()}
-        >
-          Books like this
-        </Link>
+        </div>
+
         <button
           type="button"
-          className="text-sm text-[#D4AF37] hover:underline px-1"
+          className="text-sm text-bs-teal hover:underline px-1 ml-auto"
           onClick={() => setExpanded((v) => !v)}
         >
-          {expanded
-            ? "Hide editions"
-            : `Show ${edition.copy_count} locations`}
+          {expanded ? "Hide locations" : `${edition.copy_count} locations`}
         </button>
       </div>
 
-      {msg && <p className="mt-3 text-sm text-amber-200/90">{msg}</p>}
+      {msg && <p className="mt-3 text-sm text-bs-teal">{msg}</p>}
 
       {expanded && (
-        <ul className="mt-3 space-y-2 border-t border-slate-700 pt-3">
+        <ul className="mt-3 space-y-2 border-t border-bs-line pt-3">
           {edition.copies.map((c, i) => (
             <li
               key={`${c.library_name}-${i}`}
@@ -263,7 +306,7 @@ export default function EditionResultCard({
             >
               <button
                 type="button"
-                className="text-left hover:text-[#D4AF37]"
+                className="text-left hover:text-bs-teal"
                 onClick={() => {
                   onEngage?.();
                   onSelect?.(libraryKey(c));
@@ -277,36 +320,20 @@ export default function EditionResultCard({
                     ? ` · ${c.opens_at}–${c.closes_at}`
                     : ""}
               </button>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  className="text-[#D4AF37] hover:underline"
-                  onClick={() => requestHold(c)}
+              {c.latitude != null && c.longitude != null && (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${c.latitude},${c.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-bs-teal hover:underline font-medium"
                 >
-                  Hold
-                </button>
-                <button
-                  type="button"
-                  className="text-slate-300 hover:underline"
-                  onClick={() => markFound(c)}
-                >
-                  Found
-                </button>
-                {c.latitude != null && c.longitude != null && (
-                  <a
-                    href={`https://www.google.com/maps/dir/?api=1&destination=${c.latitude},${c.longitude}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#D4AF37] hover:underline"
-                  >
-                    Directions
-                  </a>
-                )}
-              </div>
+                  Directions
+                </a>
+              )}
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </article>
   );
 }

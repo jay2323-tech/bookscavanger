@@ -13,51 +13,59 @@ interface Props {
   libraries?: Library[];
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  compact?: boolean;
 }
 
 function DirectionsList({
   libraries,
   selectedId,
   onSelect,
+  compact,
 }: {
   libraries: Library[];
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  compact?: boolean;
 }) {
   return (
-    <div className="mt-10 rounded-lg border border-gray-800 bg-gray-900/50 p-5">
-      <h3 className="text-lg font-semibold text-[#D4AF37] mb-3">
+    <div
+      className={`${compact ? "mt-3" : "mt-4"} rounded-xl border border-bs-line bg-bs-surface p-4`}
+    >
+      <h3
+        className="text-sm font-semibold text-bs-ink mb-2"
+        style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+      >
         Libraries on map
       </h3>
-      <ul className="space-y-2">
+      <ul className="space-y-1 max-h-48 overflow-y-auto">
         {libraries.map((lib) => (
           <li key={lib.id}>
             <button
               type="button"
               onClick={() => onSelect?.(lib.id)}
-              className={`w-full text-left flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-md px-2 py-2 ${
+              className={`w-full text-left flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm ${
                 selectedId === lib.id
-                  ? "bg-slate-800 text-[#D4AF37]"
-                  : "hover:bg-slate-800/60"
+                  ? "bg-bs-teal-soft text-bs-teal"
+                  : "hover:bg-bs-paper text-bs-ink"
               }`}
             >
-              <span>{lib.name}</span>
+              <span className="truncate">{lib.name}</span>
               <a
                 href={`https://www.google.com/maps/dir/?api=1&destination=${lib.latitude},${lib.longitude}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-[#D4AF37] hover:underline"
+                className="text-xs text-bs-teal hover:underline shrink-0"
                 onClick={(e) => e.stopPropagation()}
               >
-                Get directions →
+                Go
               </a>
             </button>
           </li>
         ))}
       </ul>
       {!process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY && (
-        <p className="text-xs text-gray-500 mt-4">
-          Add NEXT_PUBLIC_GOOGLE_MAPS_KEY to enable the embedded map.
+        <p className="text-xs text-bs-muted mt-3">
+          Add NEXT_PUBLIC_GOOGLE_MAPS_KEY for the embedded map.
         </p>
       )}
     </div>
@@ -68,6 +76,7 @@ export default function LibraryMap({
   libraries = [],
   selectedId,
   onSelect,
+  compact,
 }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
 
@@ -79,6 +88,7 @@ export default function LibraryMap({
         libraries={libraries}
         selectedId={selectedId}
         onSelect={onSelect}
+        compact={compact}
       />
     );
   }
@@ -90,25 +100,36 @@ export default function LibraryMap({
   };
 
   return (
-    <div className="mt-10">
-      <div className="rounded-lg overflow-hidden border border-gray-800">
+    <div className={compact ? "" : "mt-8"}>
+      <div className="rounded-xl overflow-hidden border border-bs-line shadow-sm">
         <LoadScript googleMapsApiKey={apiKey}>
           <GoogleMap
-            mapContainerStyle={{ width: "100%", height: "400px" }}
+            mapContainerStyle={{
+              width: "100%",
+              height: compact ? "320px" : "400px",
+            }}
             center={center}
             zoom={selectedId ? 13 : 12}
             options={{
               styles: [
-                { elementType: "geometry", stylers: [{ color: "#1f2933" }] },
-                {
-                  elementType: "labels.text.stroke",
-                  stylers: [{ color: "#0F172A" }],
-                },
+                { elementType: "geometry", stylers: [{ color: "#e8eef2" }] },
                 {
                   elementType: "labels.text.fill",
-                  stylers: [{ color: "#D4AF37" }],
+                  stylers: [{ color: "#142033" }],
+                },
+                {
+                  featureType: "water",
+                  elementType: "geometry",
+                  stylers: [{ color: "#c5dde0" }],
+                },
+                {
+                  featureType: "poi.park",
+                  elementType: "geometry",
+                  stylers: [{ color: "#d9f0ed" }],
                 },
               ],
+              disableDefaultUI: compact,
+              zoomControl: true,
             }}
           >
             {libraries.map((lib) => (
@@ -127,6 +148,7 @@ export default function LibraryMap({
         libraries={libraries}
         selectedId={selectedId}
         onSelect={onSelect}
+        compact={compact}
       />
     </div>
   );

@@ -50,7 +50,7 @@ export default function AdminOAuthCallback() {
     }, [router]);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#0F172A] text-white">
+        <div className="min-h-screen flex items-center justify-center bg-bs-paper text-bs-ink">
             Verifying admin access...
         </div>
     );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 
 type Props = {
   open: boolean;
@@ -56,13 +56,6 @@ export default function BarcodeScanner({ open, onClose, onScan }: Props) {
             fps: 8,
             qrbox: { width: 260, height: 140 },
             aspectRatio: 1.5,
-            formatsToSupport: [
-              Html5QrcodeSupportedFormats.EAN_13,
-              Html5QrcodeSupportedFormats.EAN_8,
-              Html5QrcodeSupportedFormats.UPC_A,
-              Html5QrcodeSupportedFormats.UPC_E,
-              Html5QrcodeSupportedFormats.CODE_128,
-            ],
           },
           (decoded) => {
             const isbn = normalizeIsbn(decoded);
@@ -103,11 +96,11 @@ export default function BarcodeScanner({ open, onClose, onScan }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-bs-ink/50 p-4">
+      <div className="w-full max-w-md rounded-xl border border-bs-line bg-bs-surface p-4 shadow-xl">
         <div className="flex items-center justify-between mb-3">
           <h2
-            className="text-lg text-[#D4AF37]"
+            className="text-lg text-bs-ink"
             style={{ fontFamily: "var(--font-display), Georgia, serif" }}
           >
             Scan ISBN barcode
@@ -115,22 +108,22 @@ export default function BarcodeScanner({ open, onClose, onScan }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white text-sm"
+            className="text-bs-muted hover:text-bs-ink text-sm"
           >
             Close
           </button>
         </div>
-        <p className="text-sm text-slate-400 mb-3">
+        <p className="text-sm text-bs-muted mb-3">
           Point your camera at the barcode on the back of the book.
         </p>
         <div
           id={regionId}
-          className="overflow-hidden rounded-lg bg-black min-h-[220px]"
+          className="overflow-hidden rounded-lg bg-bs-ink min-h-[220px]"
         />
         {starting && (
-          <p className="mt-2 text-sm text-slate-400">Starting camera…</p>
+          <p className="mt-2 text-sm text-bs-muted">Starting camera…</p>
         )}
-        {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+        {error && <p className="mt-2 text-sm text-bs-danger">{error}</p>}
       </div>
     </div>
   );

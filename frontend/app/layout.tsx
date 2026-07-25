@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "BookScavenger",
   },
   icons: {
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#D4AF37",
+  themeColor: "#C9A227",
   width: "device-width",
   initialScale: 1,
 };
@@ -50,7 +50,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${display.variable} ${body.variable} bg-[#0F172A] text-[#F8F5F0] min-h-screen antialiased`}
+        className={`${display.variable} ${body.variable} bg-bs-paper text-bs-ink min-h-screen antialiased`}
         style={{ fontFamily: "var(--font-body), system-ui, sans-serif" }}
       >
         <AuthHashCatcher />

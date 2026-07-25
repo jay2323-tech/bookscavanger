@@ -81,17 +81,17 @@ export default function PendingApprovalPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#0F172A] text-white">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-bs-paper text-bs-ink">
       {error && (
         <div className="mb-6 p-4 bg-red-500/10 border border-red-500 rounded-lg text-red-200 text-center max-w-md">
           <p className="font-semibold">Unable to check status</p>
           <p className="text-sm opacity-90">{error}</p>
         </div>
       )}
-      <h1 className="text-3xl font-bold text-[#D4AF37] mb-4">
+      <h1 className="text-3xl font-bold text-bs-teal mb-4">
         ⏳ Approval Pending
       </h1>
-      <p className="text-gray-400 text-center max-w-md">
+      <p className="text-bs-muted text-center max-w-md">
         Your librarian account is under review.
         <br />
         You’ll get access once approved by the admin.
@@ -99,7 +99,7 @@ export default function PendingApprovalPage() {
       {error && (
         <button
           onClick={() => window.location.reload()}
-          className="mt-6 px-4 py-2 bg-[#D4AF37] text-black font-semibold rounded hover:bg-[#b5952f] transition-colors"
+          className="mt-6 px-4 py-2 bg-bs-gold text-bs-gold-ink font-semibold rounded hover:bg-[#b5952f] transition-colors"
         >
           Retry
         </button>

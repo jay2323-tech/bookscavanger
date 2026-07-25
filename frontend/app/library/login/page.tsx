@@ -153,29 +153,29 @@ export default function LibraryLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-[#0F172A]">
-      <div className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-xl p-8 text-white">
-
-        <h1 className="text-2xl font-bold text-[#D4AF37] mb-6 text-center">
+    <div className="bs-paper-grid min-h-[calc(100vh-4.5rem)] flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md bg-bs-surface border border-bs-line rounded-xl p-8 shadow-sm bs-fade-in">
+        <h1
+          className="text-2xl font-semibold text-bs-ink mb-6 text-center"
+          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+        >
           Login
         </h1>
 
-        {/* GOOGLE LOGIN */}
         <button
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full mb-4 bg-white text-black py-3 rounded-lg font-semibold"
+          className="w-full mb-4 border border-bs-line bg-bs-paper text-bs-ink py-3 rounded-lg font-semibold hover:border-bs-teal"
         >
           {loading ? "Redirecting..." : "Continue with Google"}
         </button>
 
-        <div className="text-center text-gray-500 text-sm mb-4">OR</div>
+        <div className="text-center text-bs-muted text-sm mb-4">OR</div>
 
-        {/* EMAIL LOGIN */}
         <input
           type="email"
           placeholder="Email"
-          className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+          className="w-full mb-3 px-4 py-3 rounded-lg bg-bs-paper border border-bs-line text-bs-ink"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -183,28 +183,27 @@ export default function LibraryLoginPage() {
         <input
           type="password"
           placeholder="Password"
-          className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+          className="w-full mb-4 px-4 py-3 rounded-lg bg-bs-paper border border-bs-line text-bs-ink"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+        {error && <p className="text-bs-danger text-sm mb-3">{error}</p>}
 
         <button
           onClick={handlePasswordLogin}
           disabled={loading}
-          className="w-full bg-[#D4AF37] text-black py-3 rounded-lg font-semibold"
+          className="w-full bg-bs-gold text-bs-gold-ink py-3 rounded-lg font-semibold hover:brightness-95"
         >
           {loading ? "Logging in..." : "Login"}
         </button>
 
-        <p className="text-center text-sm text-gray-400 mt-6">
+        <p className="text-center text-sm text-bs-muted mt-6">
           Don’t have an account?{" "}
-          <Link href="/library/signup" className="text-[#D4AF37]">
+          <Link href="/library/signup" className="text-bs-teal font-medium">
             Sign up
           </Link>
         </p>
-
       </div>
     </div>
   );

@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import Chip from "./ui/Chip";
+
 export type SearchFiltersState = {
   radius: string;
   availableOnly: boolean;
@@ -13,68 +16,87 @@ interface Props {
 }
 
 export default function SearchFilters({ filters, setFilters }: Props) {
+  const [more, setMore] = useState(false);
+
   return (
-    <div className="mt-4 flex flex-col sm:flex-row flex-wrap gap-3 sm:items-end">
-      <label className="flex flex-col gap-1 text-sm text-gray-400">
-        Within
-        <select
-          value={filters.radius}
-          onChange={(e) =>
-            setFilters({ ...filters, radius: e.target.value })
-          }
-          className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-[#F8F5F0]"
+    <div className="mt-4 space-y-3">
+      <div className="flex flex-wrap gap-2 items-center">
+        <Chip
+          active={filters.sort === "best"}
+          onClick={() => setFilters({ ...filters, sort: "best" })}
         >
-          <option value="">Any distance</option>
-          <option value="2">2 km</option>
-          <option value="5">5 km</option>
-          <option value="10">10 km</option>
-          <option value="25">25 km</option>
-          <option value="50">50 km</option>
-        </select>
-      </label>
-
-      <label className="flex flex-col gap-1 text-sm text-gray-400">
-        Sort by
-        <select
-          value={filters.sort}
-          onChange={(e) =>
-            setFilters({
-              ...filters,
-              sort: e.target.value as SearchFiltersState["sort"],
-            })
-          }
-          className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-[#F8F5F0]"
+          Best
+        </Chip>
+        <Chip
+          active={filters.sort === "distance"}
+          onClick={() => setFilters({ ...filters, sort: "distance" })}
         >
-          <option value="best">Best match</option>
-          <option value="distance">Nearest</option>
-          <option value="title">Title</option>
-          <option value="author">Author</option>
-        </select>
-      </label>
-
-      <label className="flex items-center gap-2 text-sm text-gray-300 pb-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={filters.availableOnly}
-          onChange={(e) =>
-            setFilters({ ...filters, availableOnly: e.target.checked })
+          Nearest
+        </Chip>
+        <Chip
+          active={filters.availableOnly}
+          onClick={() =>
+            setFilters({ ...filters, availableOnly: !filters.availableOnly })
           }
-          className="accent-[#D4AF37]"
-        />
-        In stock only
-      </label>
-
-      <label className="flex items-center gap-2 text-sm text-gray-300 pb-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={filters.openNowOnly}
-          onChange={(e) =>
-            setFilters({ ...filters, openNowOnly: e.target.checked })
+        >
+          In stock
+        </Chip>
+        <Chip
+          active={filters.openNowOnly}
+          onClick={() =>
+            setFilters({ ...filters, openNowOnly: !filters.openNowOnly })
           }
-          className="accent-[#D4AF37]"
-        />
-        Open now
-      </label>
+        >
+          Open now
+        </Chip>
+        <button
+          type="button"
+          className="text-xs text-bs-muted hover:text-bs-teal underline-offset-2 hover:underline ml-1"
+          onClick={() => setMore((v) => !v)}
+        >
+          {more ? "Fewer filters" : "More filters"}
+        </button>
+      </div>
+
+      {more && (
+        <div className="flex flex-wrap gap-3 items-end bs-fade-in">
+          <label className="flex flex-col gap-1 text-xs text-bs-muted">
+            Within
+            <select
+              value={filters.radius}
+              onChange={(e) =>
+                setFilters({ ...filters, radius: e.target.value })
+              }
+              className="rounded-lg bg-bs-surface border border-bs-line px-3 py-2 text-sm text-bs-ink"
+            >
+              <option value="">Any distance</option>
+              <option value="2">2 km</option>
+              <option value="5">5 km</option>
+              <option value="10">10 km</option>
+              <option value="25">25 km</option>
+              <option value="50">50 km</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-bs-muted">
+            Sort
+            <select
+              value={filters.sort}
+              onChange={(e) =>
+                setFilters({
+                  ...filters,
+                  sort: e.target.value as SearchFiltersState["sort"],
+                })
+              }
+              className="rounded-lg bg-bs-surface border border-bs-line px-3 py-2 text-sm text-bs-ink"
+            >
+              <option value="best">Best match</option>
+              <option value="distance">Nearest</option>
+              <option value="title">Title</option>
+              <option value="author">Author</option>
+            </select>
+          </label>
+        </div>
+      )}
     </div>
   );
 }

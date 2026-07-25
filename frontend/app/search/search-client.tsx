@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import EditionResultCard, {
   type Edition,
 } from "../components/EditionResultCard";
@@ -13,6 +13,7 @@ import SearchFilters, {
   type SearchFiltersState,
 } from "../components/SearchFilters";
 import TrendingNearYou from "../components/TrendingNearYou";
+import PageShell from "../components/PageShell";
 import { addToRun } from "@/app/lib/bookRun";
 import { supabase } from "@/app/lib/supabaseClient";
 import Link from "next/link";
@@ -35,16 +36,19 @@ export default function SearchClient() {
   const [alertMsg, setAlertMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [locationNote, setLocationNote] = useState<string | null>(null);
   const [fuzzyNote, setFuzzyNote] = useState<string | null>(null);
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
     null
   );
+  const [showMapMobile, setShowMapMobile] = useState(false);
   const [filters, setFilters] = useState<SearchFiltersState>({
     radius: "",
     availableOnly: false,
     openNowOnly: false,
     sort: "best",
   });
+  const filtersBoot = useRef(true);
 
   const mapLibraries = useMemo(() => {
     const seen = new Set<string>();
@@ -104,6 +108,73 @@ export default function SearchClient() {
     card?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  const runSearch = async (q: string, lat?: number, lng?: number) => {
+    const url = new URL(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/books/search`
+    );
+    url.searchParams.set("q", q);
+    if (lat != null && lng != null) {
+      url.searchParams.set("lat", String(lat));
+      url.searchParams.set("lng", String(lng));
+    }
+    url.searchParams.set(
+      "sort",
+      lat != null ? filters.sort : filters.sort === "distance" ? "title" : filters.sort
+    );
+    if (filters.radius && lat != null) url.searchParams.set("radius", filters.radius);
+    if (filters.availableOnly) url.searchParams.set("available", "true");
+    if (filters.openNowOnly) url.searchParams.set("openNow", "true");
+
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error("Failed");
+
+    const payload = await res.json();
+    const data = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload.results)
+        ? payload.results
+        : [];
+    const meta = payload.meta;
+
+    const mapped: Edition[] = data.map((b: any) => {
+      if (Array.isArray(b.copies)) return b as Edition;
+      return {
+        key: `${b.title}|${b.author}|${b.library_name}`,
+        title: b.title,
+        author: b.author,
+        isbns: b.isbn ? [b.isbn] : [],
+        copy_count: 1,
+        library_count: 1,
+        best_distance: b.distance ?? null,
+        available: b.available !== false,
+        open_now: b.open_now === true,
+        library_name: b.library_name,
+        latitude: b.latitude,
+        longitude: b.longitude,
+        distance: b.distance,
+        cover_url: b.cover_url,
+        copies: [
+          {
+            library_name: b.library_name,
+            distance: b.distance ?? null,
+            available: b.available !== false,
+            latitude: b.latitude,
+            longitude: b.longitude,
+            isbn: b.isbn,
+            opens_at: b.opens_at,
+            closes_at: b.closes_at,
+            open_now: b.open_now,
+          },
+        ],
+      };
+    });
+
+    setResults(mapped);
+    if (meta?.fuzzy && meta?.suggestion) {
+      setFuzzyNote(`Showing close matches for “${meta.suggestion}”`);
+    }
+  };
+
   const fetchBooks = async (overrideQuery?: string) => {
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
@@ -111,89 +182,47 @@ export default function SearchClient() {
     setLoading(true);
     setError("");
     setFuzzyNote(null);
+    setLocationNote(null);
     setSelectedLibraryId(null);
 
+    const searchWithoutGeo = async () => {
+      setLocationNote(
+        "Enable location for distance ranking and nearby filters."
+      );
+      await runSearch(q);
+    };
+
     if (!navigator.geolocation) {
-      setError("Location access is required");
-      setLoading(false);
+      try {
+        await searchWithoutGeo();
+      } catch {
+        setError("Failed to fetch books");
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const url = new URL(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/books/search`
-          );
-          url.searchParams.set("q", q);
-          url.searchParams.set("lat", String(pos.coords.latitude));
-          url.searchParams.set("lng", String(pos.coords.longitude));
-          url.searchParams.set("sort", filters.sort);
-          if (filters.radius) url.searchParams.set("radius", filters.radius);
-          if (filters.availableOnly) url.searchParams.set("available", "true");
-          if (filters.openNowOnly) url.searchParams.set("openNow", "true");
-
-          const res = await fetch(url.toString());
-          if (!res.ok) throw new Error("Failed");
-
-          const payload = await res.json();
-          const data = Array.isArray(payload)
-            ? payload
-            : Array.isArray(payload.results)
-              ? payload.results
-              : [];
-          const meta = payload.meta;
-
-          // Support both grouped editions and legacy flat rows
-          const mapped: Edition[] = data.map((b: any) => {
-            if (Array.isArray(b.copies)) {
-              return b as Edition;
-            }
-            return {
-              key: `${b.title}|${b.author}|${b.library_name}`,
-              title: b.title,
-              author: b.author,
-              isbns: b.isbn ? [b.isbn] : [],
-              copy_count: 1,
-              library_count: 1,
-              best_distance: b.distance ?? null,
-              available: b.available !== false,
-              open_now: b.open_now === true,
-              library_name: b.library_name,
-              latitude: b.latitude,
-              longitude: b.longitude,
-              distance: b.distance,
-              copies: [
-                {
-                  library_name: b.library_name,
-                  distance: b.distance ?? null,
-                  available: b.available !== false,
-                  latitude: b.latitude,
-                  longitude: b.longitude,
-                  isbn: b.isbn,
-                  opens_at: b.opens_at,
-                  closes_at: b.closes_at,
-                  open_now: b.open_now,
-                },
-              ],
-            };
-          });
-
-          setResults(mapped);
-
-          if (meta?.fuzzy && meta?.suggestion) {
-            setFuzzyNote(`Showing close matches for “${meta.suggestion}”`);
-          }
+          await runSearch(q, pos.coords.latitude, pos.coords.longitude);
         } catch {
           setError("Failed to fetch books");
         } finally {
           setLoading(false);
         }
       },
-      () => {
-        setError("Location permission denied");
-        setLoading(false);
-      }
+      async () => {
+        try {
+          await searchWithoutGeo();
+        } catch {
+          setError("Failed to fetch books");
+        } finally {
+          setLoading(false);
+        }
+      },
+      { maximumAge: 60_000, timeout: 8000 }
     );
   };
 
@@ -202,8 +231,20 @@ export default function SearchClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-apply filters when they change (after first search exists)
   useEffect(() => {
-    if (!similarTitle && !query) {
+    if (filtersBoot.current) {
+      filtersBoot.current = false;
+      return;
+    }
+    if (!query.trim() && !results.length) return;
+    const t = setTimeout(() => fetchBooks(), 180);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  useEffect(() => {
+    if (!similarTitle && !results.length) {
       setSimilar([]);
       return;
     }
@@ -217,7 +258,7 @@ export default function SearchClient() {
       .then((r) => r.json())
       .then((d) => setSimilar(Array.isArray(d) ? d : []))
       .catch(() => setSimilar([]));
-  }, [similarTitle, results, query]);
+  }, [similarTitle, results]);
 
   const createAlert = async () => {
     setAlertMsg("");
@@ -228,6 +269,11 @@ export default function SearchClient() {
     } = await supabase.auth.getSession();
     if (!session?.access_token) {
       setAlertMsg("Login required to create an alert");
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setAlertMsg("Location required for alerts");
       return;
     }
 
@@ -258,127 +304,150 @@ export default function SearchClient() {
     });
   };
 
-  return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
-      <h1
-        className="text-3xl font-semibold mb-2 text-[#D4AF37]"
-        style={{ fontFamily: "var(--font-display), Georgia, serif" }}
-      >
-        Find books near you
-      </h1>
-      <p className="text-gray-400 mb-6">
-        Editions grouped across libraries. Filter by distance, stock, and open
-        now.
-      </p>
-
-      <SearchBar
-        query={query}
-        setQuery={setQuery}
-        onSearch={fetchBooks}
-        loading={loading}
+  const mapPane =
+    !loading && mapLibraries.length > 0 ? (
+      <LibraryMap
+        libraries={mapLibraries}
+        selectedId={selectedLibraryId}
+        onSelect={selectLibrary}
+        compact
       />
+    ) : null;
 
-      <SearchFilters filters={filters} setFilters={setFilters} />
+  return (
+    <PageShell className="!max-w-7xl">
+      <div className="bs-fade-in">
+        <p
+          className="text-sm font-semibold text-bs-teal mb-1"
+          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+        >
+          BookScavenger
+        </p>
+        <h1
+          className="text-2xl sm:text-3xl font-semibold text-bs-ink mb-1"
+          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+        >
+          Find a book nearby
+        </h1>
+        <p className="text-bs-muted mb-5 text-sm sm:text-base max-w-xl">
+          Search title, author, or ISBN — then get directions to the nearest copy.
+        </p>
 
-      <button
-        type="button"
-        onClick={() => fetchBooks()}
-        className="mt-3 text-sm text-[#D4AF37] hover:underline mr-4"
-      >
-        Apply filters
-      </button>
-      <button
-        type="button"
-        onClick={createAlert}
-        className="mt-3 text-sm text-slate-300 hover:text-[#D4AF37] underline-offset-2 hover:underline"
-      >
-        Alert me when this is nearby
-      </button>
-      <Link
-        href="/plan"
-        className="mt-3 ml-4 text-sm text-[#D4AF37] hover:underline"
-      >
-        Book-run planner
-      </Link>
-      {runToast && (
-        <p className="mt-2 text-sm text-green-400">{runToast}</p>
-      )}
-      {alertMsg && (
-        <p className="mt-2 text-sm text-amber-200">{alertMsg}</p>
-      )}
-
-      {!initialQuery && !results.length && !loading && <TrendingNearYou />}
-
-      {similar.length > 0 && (
-        <section className="mt-8">
-          <h2 className="text-lg text-[#D4AF37] mb-3">Books like this</h2>
-          <ul className="grid sm:grid-cols-2 gap-2">
-            {similar.map((s) => (
-              <li key={s.title}>
-                <button
-                  type="button"
-                  className="w-full text-left rounded-lg border border-slate-700 px-3 py-2 hover:border-[#D4AF37]"
-                  onClick={() => {
-                    setQuery(s.title);
-                    fetchBooks(s.title);
-                  }}
-                >
-                  <p className="font-medium">{s.title}</p>
-                  <p className="text-xs text-slate-400">
-                    {s.author} · {s.reason}
-                  </p>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {fuzzyNote && (
-        <p className="mt-4 text-sm text-amber-300/90">{fuzzyNote}</p>
-      )}
-
-      <div className="mt-8 space-y-4">
-        {loading && <LoadingSkeleton />}
-        {!loading && error && (
-          <p className="text-red-400 text-center">{error}</p>
-        )}
-        {!loading && !error && results.length === 0 && query && (
-          <EmptyState
-            onTrySuggestion={(s) => {
-              setQuery(s);
-              fetchBooks(s);
-            }}
+        <div className="sticky top-[3.75rem] z-30 -mx-1 px-1 py-3 bg-bs-paper/90 backdrop-blur-sm border-b border-bs-line/60 mb-4">
+          <SearchBar
+            query={query}
+            setQuery={setQuery}
+            onSearch={fetchBooks}
+            loading={loading}
           />
-        )}
+          <SearchFilters filters={filters} setFilters={setFilters} />
+          <div className="mt-2 flex flex-wrap gap-3 text-sm">
+            <button
+              type="button"
+              onClick={createAlert}
+              className="text-bs-muted hover:text-bs-teal"
+            >
+              Alert me nearby
+            </button>
+            <Link href="/plan" className="text-bs-teal hover:underline">
+              Book-run planner
+            </Link>
+            {mapLibraries.length > 0 && (
+              <button
+                type="button"
+                className="lg:hidden text-bs-teal font-medium"
+                onClick={() => setShowMapMobile((v) => !v)}
+              >
+                {showMapMobile ? "Hide map" : "Show map"}
+              </button>
+            )}
+          </div>
+          {runToast && <p className="mt-2 text-sm text-bs-ok">{runToast}</p>}
+          {alertMsg && <p className="mt-2 text-sm text-bs-teal">{alertMsg}</p>}
+          {locationNote && (
+            <p className="mt-2 text-sm text-bs-muted">{locationNote}</p>
+          )}
+          {fuzzyNote && (
+            <p className="mt-2 text-sm text-bs-gold">{fuzzyNote}</p>
+          )}
+        </div>
 
-        {results.map((edition) => {
-          const id = libraryKeyFromEdition(edition);
-          return (
-            <div key={edition.key} data-library-id={id}>
-              <EditionResultCard
-                edition={edition}
-                selected={selectedLibraryId === id}
-                onSelect={selectLibrary}
-                onEngage={() => trackClick(edition)}
-                onAddToRun={(stop) => {
-                  addToRun(stop);
-                  setRunToast(`Added “${stop.title}” to book run`);
-                  setTimeout(() => setRunToast(""), 2500);
+        {!initialQuery && !results.length && !loading && <TrendingNearYou />}
+
+        <div className="lg:grid lg:grid-cols-[1fr_380px] lg:gap-8 lg:items-start">
+          <div className="space-y-3 bs-stagger">
+            {loading && <LoadingSkeleton />}
+            {!loading && error && (
+              <p className="text-bs-danger text-center py-6">{error}</p>
+            )}
+            {!loading && !error && results.length === 0 && query && (
+              <EmptyState
+                onTrySuggestion={(s) => {
+                  setQuery(s);
+                  fetchBooks(s);
                 }}
               />
-            </div>
-          );
-        })}
-      </div>
+            )}
 
-      {!loading && mapLibraries.length > 0 && (
-        <LibraryMap
-          libraries={mapLibraries}
-          selectedId={selectedLibraryId}
-          onSelect={selectLibrary}
-        />
-      )}
-    </div>
+            {results.map((edition) => {
+              const id = libraryKeyFromEdition(edition);
+              return (
+                <div key={edition.key} data-library-id={id}>
+                  <EditionResultCard
+                    edition={edition}
+                    selected={selectedLibraryId === id}
+                    onSelect={selectLibrary}
+                    onEngage={() => trackClick(edition)}
+                    onAddToRun={(stop) => {
+                      addToRun(stop);
+                      setRunToast(`Added “${stop.title}” to book run`);
+                      setTimeout(() => setRunToast(""), 2500);
+                    }}
+                  />
+                </div>
+              );
+            })}
+
+            {similar.length > 0 && results.length > 0 && (
+              <section className="pt-6 mt-4 border-t border-bs-line">
+                <h2
+                  className="text-lg text-bs-ink mb-3"
+                  style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+                >
+                  Books like this
+                </h2>
+                <ul className="grid sm:grid-cols-2 gap-2">
+                  {similar.map((s) => (
+                    <li key={s.title}>
+                      <button
+                        type="button"
+                        className="w-full text-left rounded-lg border border-bs-line bg-bs-surface px-3 py-2 hover:border-bs-teal"
+                        onClick={() => {
+                          setQuery(s.title);
+                          fetchBooks(s.title);
+                        }}
+                      >
+                        <p className="font-medium text-bs-ink">{s.title}</p>
+                        <p className="text-xs text-bs-muted">
+                          {s.author} · {s.reason}
+                        </p>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+
+          <aside className="hidden lg:block sticky top-28 mt-0">
+            {mapPane}
+          </aside>
+        </div>
+
+        {showMapMobile && (
+          <div className="lg:hidden mt-6 bs-fade-in">{mapPane}</div>
+        )}
+      </div>
+    </PageShell>
   );
 }
