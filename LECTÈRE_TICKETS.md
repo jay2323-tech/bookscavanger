@@ -35,7 +35,7 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 - [ ] **LEC-012** Filters: radius, available-only, library, sort
 - [ ] **LEC-013** Book covers + metadata enrich (Open Library)
 - [ ] **LEC-014** Did-you-mean + zero-result recovery
-- [ ] **LEC-015** Deploy latest backend to Render (kill production 404s)
+- [ ] **LEC-015** Deploy latest backend to Render (kill production 404s) — monorepo live at `jay2323-tech/lectere`; still need Render/Vercel wired to new paths
 
 ---
 
