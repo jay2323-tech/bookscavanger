@@ -19,19 +19,16 @@ const app = express();
 app.use(
   cors({
     origin: (origin, callback) => {
-      const allowed = [
-        "http://localhost:3000",
-        "https://lexoria-frontend.vercel.app",
-        "https://lexoria-frontend-phi.vercel.app",
-      ];
+      // Allow local + any Vercel preview/prod. No origin = curl/server-to-server.
       if (
         !origin ||
-        allowed.includes(origin) ||
+        origin === "http://localhost:3000" ||
+        origin === "http://127.0.0.1:3000" ||
         /\.vercel\.app$/.test(origin)
       ) {
         return callback(null, true);
       }
-      return callback(new Error("Not allowed by CORS"));
+      return callback(null, false);
     },
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],

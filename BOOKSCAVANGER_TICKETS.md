@@ -71,8 +71,7 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 
 ## Suggested next
 
-1. Run `database/migrations/003_p2_holds_finds_alerts.sql` in Supabase  
-2. **BS-015** — Finish Vercel + Render on monorepo  
-3. **BS-013** — Covers + metadata enrich (deferred)  
-4. **BS-022** — ISBN barcode scanner (deferred)  
-5. **P3** — Meilisearch / PWA / ILS when ready 
+1. **BS-015** — Finish Vercel frontend on monorepo (Render backend already live). See `DEPLOY.md`  
+2. **BS-013** — Covers + metadata enrich  
+3. **BS-022** — ISBN barcode scanner  
+4. **P3** — Meilisearch / PWA / ILS when ready 

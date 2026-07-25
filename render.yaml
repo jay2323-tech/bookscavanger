@@ -1,0 +1,22 @@
+# BookScavenger — Render Blueprint
+# Dashboard → New → Blueprint → connect jay2323-tech/bookscavanger
+# Or: update an existing Web Service to use Root Directory = backend
+
+services:
+  - type: web
+    name: bookscavanger-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

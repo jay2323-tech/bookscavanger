@@ -36,18 +36,19 @@ Set `NEXT_PUBLIC_BACKEND_URL=http://localhost:8080` in `frontend/.env.local`.
 
 ## Deploy
 
+See **[DEPLOY.md](./DEPLOY.md)** for the full BS-015 checklist.
+
 **Repo:** https://github.com/jay2323-tech/bookscavanger
 
-### Vercel (frontend)
-1. Import `jay2323-tech/bookscavanger`
-2. Root Directory → `frontend`
-3. Env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_BACKEND_URL`
+| Service | Platform | Root dir | Notes |
+|---------|----------|----------|--------|
+| API | Render | `backend` | `npm install` / `npm start` · Blueprint: `render.yaml` |
+| Web | Vercel | `frontend` | Set `NEXT_PUBLIC_BACKEND_URL` to the Render URL |
 
-### Render (backend)
-1. Connect `jay2323-tech/bookscavanger`
-2. Root Directory → `backend`
-3. Build: `npm install` · Start: `npm start`
-4. Env: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+### Env quick reference
+
+**Render:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`  
+**Vercel:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_BACKEND_URL`
 
 ## Tickets
 
