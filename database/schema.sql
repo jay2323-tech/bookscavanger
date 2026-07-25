@@ -21,6 +21,8 @@ create table if not exists public.libraries (
   email text,
   latitude double precision,
   longitude double precision,
+  opens_at text default '09:00',
+  closes_at text default '20:00',
   approved boolean not null default false,
   rejected boolean not null default false,
   created_at timestamptz not null default now()

@@ -211,3 +211,100 @@ export const rejectLibrarian = async (req, res) => {
     });
   }
 };
+
+/**
+ * 🔍 Search insights for admin (BS-026)
+ * Aggregates searches, zero-results, top queries, CTR proxy.
+ */
+export const getSearchInsights = async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("analytics")
+      .select("event_type, metadata, created_at")
+      .in("event_type", ["search", "result_click"])
+      .order("created_at", { ascending: false })
+      .limit(1000);
+
+    if (error) throw error;
+
+    const searches = (data || []).filter((e) => e.event_type === "search");
+    const clicks = (data || []).filter((e) => e.event_type === "result_click");
+
+    const totalSearches = searches.length;
+    const zeroResults = searches.filter(
+      (s) => s.metadata?.zero === true || s.metadata?.count === 0
+    ).length;
+    const zeroRate =
+      totalSearches === 0
+        ? 0
+        : Math.round((zeroResults / totalSearches) * 1000) / 10;
+
+    const byQuery = {};
+    for (const s of searches) {
+      const q = String(s.metadata?.query || "")
+        .toLowerCase()
+        .trim();
+      if (!q) continue;
+      if (!byQuery[q]) {
+        byQuery[q] = { query: q, searches: 0, zeros: 0, clicks: 0 };
+      }
+      byQuery[q].searches += 1;
+      if (s.metadata?.zero === true || s.metadata?.count === 0) {
+        byQuery[q].zeros += 1;
+      }
+    }
+
+    for (const c of clicks) {
+      const q = String(c.metadata?.query || "")
+        .toLowerCase()
+        .trim();
+      const title = String(c.metadata?.title || "")
+        .toLowerCase()
+        .trim();
+      if (q && byQuery[q]) byQuery[q].clicks += 1;
+      else if (title) {
+        // attribute click to matching query key if any
+        for (const key of Object.keys(byQuery)) {
+          if (title.includes(key) || key.includes(title.slice(0, 12))) {
+            byQuery[key].clicks += 1;
+            break;
+          }
+        }
+      }
+    }
+
+    const topQueries = Object.values(byQuery)
+      .sort((a, b) => b.searches - a.searches)
+      .slice(0, 15)
+      .map((row) => ({
+        ...row,
+        ctr:
+          row.searches === 0
+            ? 0
+            : Math.round((row.clicks / row.searches) * 1000) / 10,
+      }));
+
+    const ctr =
+      totalSearches === 0
+        ? 0
+        : Math.round((clicks.length / totalSearches) * 1000) / 10;
+
+    return res.json({
+      totalSearches,
+      zeroResults,
+      zeroRate,
+      totalClicks: clicks.length,
+      ctr,
+      topQueries,
+      recentSearches: searches.slice(0, 20).map((s) => ({
+        query: s.metadata?.query || "",
+        count: s.metadata?.count ?? null,
+        zero: s.metadata?.zero === true || s.metadata?.count === 0,
+        at: s.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error("getSearchInsights:", err);
+    return res.status(500).json({ error: "Failed to load search insights" });
+  }
+};

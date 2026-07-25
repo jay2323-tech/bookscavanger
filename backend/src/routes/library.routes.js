@@ -3,6 +3,7 @@ import {
     addBook,
     getLibraryDashboard,
     getMyBooks,
+    updateLibraryHours,
 } from "../controllers/library.controller.js";
 import { authenticateLibrary } from "../middleware/authenticateLibrary.js";
 
@@ -13,5 +14,7 @@ router.get("/dashboard", authenticateLibrary, getLibraryDashboard);
 router.get("/my-books", authenticateLibrary, getMyBooks);
 
 router.post("/books", authenticateLibrary, addBook);
+
+router.patch("/hours", authenticateLibrary, updateLibraryHours);
 
 export default router;

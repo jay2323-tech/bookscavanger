@@ -14,6 +14,8 @@ export default function LibrarianOnboardingPage() {
         email: "",
         latitude: "",
         longitude: "",
+        opens_at: "09:00",
+        closes_at: "20:00",
     });
 
     // ✅ Ensure user is logged in
@@ -55,6 +57,8 @@ export default function LibrarianOnboardingPage() {
                         email: form.email,
                         latitude: form.latitude,
                         longitude: form.longitude,
+                        opens_at: form.opens_at,
+                        closes_at: form.closes_at,
                     }),
                 }
             );
@@ -112,6 +116,28 @@ export default function LibrarianOnboardingPage() {
                         setForm({ ...form, longitude: e.target.value })
                     }
                 />
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                    <input
+                        type="time"
+                        className="w-full px-4 py-3 rounded bg-gray-800"
+                        value={form.opens_at}
+                        onChange={(e) =>
+                            setForm({ ...form, opens_at: e.target.value })
+                        }
+                    />
+                    <input
+                        type="time"
+                        className="w-full px-4 py-3 rounded bg-gray-800"
+                        value={form.closes_at}
+                        onChange={(e) =>
+                            setForm({ ...form, closes_at: e.target.value })
+                        }
+                    />
+                </div>
+                <p className="text-xs text-gray-500 mb-4 -mt-2">
+                    Opening hours (local time)
+                </p>
 
                 {error && (
                     <p className="text-red-400 text-sm mb-3">{error}</p>

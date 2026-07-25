@@ -17,11 +17,33 @@ type PendingLibrarian = {
   supabase_user_id: string | null;
 };
 
+type SearchInsights = {
+  totalSearches: number;
+  zeroResults: number;
+  zeroRate: number;
+  totalClicks: number;
+  ctr: number;
+  topQueries: {
+    query: string;
+    searches: number;
+    zeros: number;
+    clicks: number;
+    ctr: number;
+  }[];
+  recentSearches: {
+    query: string;
+    count: number | null;
+    zero: boolean;
+    at: string;
+  }[];
+};
+
 export default function AdminDashboard() {
   const router = useRouter();
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [analytics, setAnalytics] = useState<any[]>([]);
+  const [insights, setInsights] = useState<SearchInsights | null>(null);
   const [pending, setPending] = useState<PendingLibrarian[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +93,13 @@ export default function AdminDashboard() {
           }
         );
 
+        const insightsRes = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/search-insights`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
         if (!analyticsRes.ok) {
           const e = new Error("Failed to load analytics");
           (e as any).status = analyticsRes.status;
@@ -87,6 +116,9 @@ export default function AdminDashboard() {
           setStats(await statsRes.json());
           setAnalytics(await analyticsRes.json());
           setPending(await pendingRes.json());
+          if (insightsRes.ok) {
+            setInsights(await insightsRes.json());
+          }
           setLoading(false);
         }
       } catch (err: any) {
@@ -171,6 +203,51 @@ export default function AdminDashboard() {
           <Card title="Total Books" value={stats.totalBooks} />
           <Card title="Platform Status" value={stats.status} />
         </div>
+      )}
+
+      {insights && (
+        <>
+          <h2 className="mt-12 text-2xl text-[#D4AF37]">Search insights</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+            <Card title="Searches" value={insights.totalSearches} />
+            <Card title="Zero-result %" value={`${insights.zeroRate}%`} />
+            <Card title="Result clicks" value={insights.totalClicks} />
+            <Card title="CTR %" value={`${insights.ctr}%`} />
+          </div>
+
+          <h3 className="mt-8 text-lg text-gray-300">Top queries</h3>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-gray-400 border-b border-gray-700">
+                <tr>
+                  <th className="py-2 pr-4">Query</th>
+                  <th className="py-2 pr-4">Searches</th>
+                  <th className="py-2 pr-4">Zeros</th>
+                  <th className="py-2 pr-4">Clicks</th>
+                  <th className="py-2">CTR %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {insights.topQueries.map((row) => (
+                  <tr key={row.query} className="border-b border-gray-800">
+                    <td className="py-2 pr-4 font-medium">{row.query}</td>
+                    <td className="py-2 pr-4">{row.searches}</td>
+                    <td className="py-2 pr-4">{row.zeros}</td>
+                    <td className="py-2 pr-4">{row.clicks}</td>
+                    <td className="py-2">{row.ctr}</td>
+                  </tr>
+                ))}
+                {insights.topQueries.length === 0 && (
+                  <tr>
+                    <td className="py-3 text-gray-500" colSpan={5}>
+                      No search data yet
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <h2 className="mt-12 text-2xl text-[#D4AF37]">

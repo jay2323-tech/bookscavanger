@@ -87,6 +87,36 @@ export async function addBook(req, res) {
 }
 
 /**
+ * 🕐 PATCH /api/library/hours
+ */
+export async function updateLibraryHours(req, res) {
+  try {
+    const { opens_at, closes_at } = req.body;
+    if (!opens_at || !closes_at) {
+      return res.status(400).json({ error: "opens_at and closes_at required (HH:MM)" });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("libraries")
+      .update({ opens_at, closes_at })
+      .eq("id", req.library.id)
+      .select("id, name, opens_at, closes_at")
+      .single();
+
+    if (error) throw error;
+    res.json({ message: "Hours updated", library: data });
+  } catch (err) {
+    console.error("updateLibraryHours:", err.message);
+    res.status(500).json({
+      error:
+        err.message?.includes("opens_at")
+          ? "Run database/migrations/002_library_hours.sql in Supabase first"
+          : "Failed to update hours",
+    });
+  }
+}
+
+/**
  * 📂 POST /api/library/upload
  */
 export async function uploadBooksFromExcel(req, res) {

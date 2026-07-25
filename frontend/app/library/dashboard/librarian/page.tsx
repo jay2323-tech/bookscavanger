@@ -31,6 +31,8 @@ export default function LibrarianDashboard() {
     isbn: "",
     quantity: "1",
   });
+  const [hours, setHours] = useState({ opens_at: "09:00", closes_at: "20:00" });
+  const [savingHours, setSavingHours] = useState(false);
 
   const loadBooks = async () => {
     const res = await authFetch(`${backend}/api/library/my-books`);
@@ -146,6 +148,25 @@ export default function LibrarianDashboard() {
     }
   };
 
+  const handleSaveHours = async () => {
+    setError("");
+    setSuccess("");
+    setSavingHours(true);
+    try {
+      const res = await authFetch(`${backend}/api/library/hours`, {
+        method: "PATCH",
+        body: JSON.stringify(hours),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save hours");
+      setSuccess("Opening hours updated");
+    } catch (err: any) {
+      setError(err.message || "Failed to save hours");
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -180,6 +201,43 @@ export default function LibrarianDashboard() {
           {success && <p className="text-green-400 text-sm">{success}</p>}
         </div>
       )}
+
+      <section className="mb-12">
+        <h2 className="text-xl font-semibold mb-4 text-[#D4AF37]">
+          Opening hours
+        </h2>
+        <div className="grid sm:grid-cols-2 gap-3 max-w-md">
+          <label className="text-sm text-gray-400">
+            Opens
+            <input
+              type="time"
+              className="mt-1 w-full px-4 py-3 rounded bg-gray-900 border border-gray-800"
+              value={hours.opens_at}
+              onChange={(e) =>
+                setHours({ ...hours, opens_at: e.target.value })
+              }
+            />
+          </label>
+          <label className="text-sm text-gray-400">
+            Closes
+            <input
+              type="time"
+              className="mt-1 w-full px-4 py-3 rounded bg-gray-900 border border-gray-800"
+              value={hours.closes_at}
+              onChange={(e) =>
+                setHours({ ...hours, closes_at: e.target.value })
+              }
+            />
+          </label>
+        </div>
+        <button
+          onClick={handleSaveHours}
+          disabled={savingHours}
+          className="mt-4 bg-[#D4AF37] text-black px-6 py-3 rounded-lg font-semibold disabled:opacity-50"
+        >
+          {savingHours ? "Saving..." : "Save hours"}
+        </button>
+      </section>
 
       <section className="mb-12">
         <h2 className="text-xl font-semibold mb-4 text-[#D4AF37]">Add a book</h2>

@@ -3,6 +3,7 @@
 export type SearchFiltersState = {
   radius: string;
   availableOnly: boolean;
+  openNowOnly: boolean;
   sort: "best" | "distance" | "title" | "author";
 };
 
@@ -13,7 +14,7 @@ interface Props {
 
 export default function SearchFilters({ filters, setFilters }: Props) {
   return (
-    <div className="mt-4 flex flex-col sm:flex-row gap-3 sm:items-end">
+    <div className="mt-4 flex flex-col sm:flex-row flex-wrap gap-3 sm:items-end">
       <label className="flex flex-col gap-1 text-sm text-gray-400">
         Within
         <select
@@ -61,6 +62,18 @@ export default function SearchFilters({ filters, setFilters }: Props) {
           className="accent-[#D4AF37]"
         />
         In stock only
+      </label>
+
+      <label className="flex items-center gap-2 text-sm text-gray-300 pb-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={filters.openNowOnly}
+          onChange={(e) =>
+            setFilters({ ...filters, openNowOnly: e.target.checked })
+          }
+          className="accent-[#D4AF37]"
+        />
+        Open now
       </label>
     </div>
   );

@@ -48,13 +48,178 @@ function mapBook(book, lat, lng) {
       ? calculateDistance(lat, lng, lib.latitude, lib.longitude)
       : null;
 
+  const opens_at = lib?.opens_at ?? null;
+  const closes_at = lib?.closes_at ?? null;
+
   return {
     ...book,
     library_name: lib?.name ?? null,
     latitude: lib?.latitude ?? null,
     longitude: lib?.longitude ?? null,
     distance,
+    opens_at,
+    closes_at,
+    open_now: isOpenNow(opens_at, closes_at),
   };
+}
+
+/** HH:MM local time open check. null hours => unknown (null). */
+function isOpenNow(opensAt, closesAt, now = new Date()) {
+  if (!opensAt || !closesAt) return null;
+  const parse = (s) => {
+    const [h, m] = String(s).split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
+  };
+  const openM = parse(opensAt);
+  const closeM = parse(closesAt);
+  if (openM == null || closeM == null) return null;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  if (closeM === openM) return true; // 24h
+  if (closeM > openM) return cur >= openM && cur < closeM;
+  // overnight e.g. 22:00–06:00
+  return cur >= openM || cur < closeM;
+}
+
+function editionKey(book) {
+  const isbn = (book.isbn || "").replace(/[-\s]/g, "").toLowerCase();
+  if (isbn.length >= 10) return `isbn:${isbn}`;
+  const title = (book.title || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const author = (book.author || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return `ta:${title}|${author}`;
+}
+
+/** Group flat copies into works/editions with multiple library copies. */
+function groupIntoEditions(results) {
+  const map = new Map();
+  for (const book of results) {
+    const key = editionKey(book);
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        title: book.title,
+        author: book.author,
+        isbns: new Set(),
+        copies: [],
+        best_distance: book.distance,
+        best_rank: book.rank_score ?? 0,
+        any_available: book.available !== false,
+        any_open_now: book.open_now === true,
+      });
+    }
+    const g = map.get(key);
+    if (book.isbn) g.isbns.add(book.isbn);
+    g.copies.push({
+      id: book.id,
+      library_name: book.library_name,
+      distance: book.distance,
+      available: book.available !== false,
+      latitude: book.latitude,
+      longitude: book.longitude,
+      isbn: book.isbn,
+      opens_at: book.opens_at,
+      closes_at: book.closes_at,
+      open_now: book.open_now,
+      rank_score: book.rank_score,
+    });
+    if (
+      book.distance != null &&
+      (g.best_distance == null || book.distance < g.best_distance)
+    ) {
+      g.best_distance = book.distance;
+    }
+    g.best_rank = Math.max(g.best_rank, book.rank_score ?? 0);
+    if (book.available !== false) g.any_available = true;
+    if (book.open_now === true) g.any_open_now = true;
+  }
+
+  return Array.from(map.values()).map((g) => {
+    g.copies.sort(
+      (a, b) => (a.distance ?? 999) - (b.distance ?? 999)
+    );
+    return {
+      key: g.key,
+      title: g.title,
+      author: g.author,
+      isbns: Array.from(g.isbns),
+      copy_count: g.copies.length,
+      library_count: new Set(g.copies.map((c) => c.library_name)).size,
+      best_distance: g.best_distance,
+      available: g.any_available,
+      open_now: g.any_open_now,
+      rank_score: g.best_rank,
+      // primary (nearest) copy for map pin
+      library_name: g.copies[0]?.library_name ?? null,
+      latitude: g.copies[0]?.latitude ?? null,
+      longitude: g.copies[0]?.longitude ?? null,
+      distance: g.best_distance,
+      copies: g.copies,
+    };
+  });
+}
+
+async function fetchMatchingBooks(q) {
+  const { data, error } = await supabase
+    .from("books")
+    .select(
+      "*, libraries(name, latitude, longitude, opens_at, closes_at)"
+    )
+    .or(`title.ilike.%${q}%,author.ilike.%${q}%,isbn.ilike.%${q}%`)
+    .limit(200);
+
+  if (error) {
+    // Fallback if hours columns not migrated yet
+    if (String(error.message).includes("opens_at")) {
+      const retry = await supabase
+        .from("books")
+        .select("*, libraries(name, latitude, longitude)")
+        .or(`title.ilike.%${q}%,author.ilike.%${q}%,isbn.ilike.%${q}%`)
+        .limit(200);
+      if (retry.error) throw retry.error;
+      return (retry.data || []).filter((b) => b.libraries);
+    }
+    throw error;
+  }
+  return (data || []).filter((b) => b.libraries);
+}
+
+async function fetchFuzzyCandidates(q) {
+  const prefix = q.slice(0, Math.min(4, q.length));
+  if (prefix.length < 2) return [];
+
+  let { data, error } = await supabase
+    .from("books")
+    .select(
+      "*, libraries(name, latitude, longitude, opens_at, closes_at)"
+    )
+    .or(`title.ilike.%${prefix}%,author.ilike.%${prefix}%`)
+    .limit(300);
+
+  if (error && String(error.message).includes("opens_at")) {
+    const retry = await supabase
+      .from("books")
+      .select("*, libraries(name, latitude, longitude)")
+      .or(`title.ilike.%${prefix}%,author.ilike.%${prefix}%`)
+      .limit(300);
+    data = retry.data;
+    error = retry.error;
+  }
+
+  if (error) throw error;
+
+  return (data || [])
+    .filter((b) => b.libraries)
+    .map((b) => ({
+      book: b,
+      score: Math.max(
+        similarity(q, b.title),
+        similarity(q, b.author || "")
+      ),
+    }))
+    .filter((x) => x.score >= 0.45)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 80)
+    .map((x) => x.book);
 }
 
 /** Recent search query → count (popularity signal) */
@@ -106,47 +271,10 @@ function rankScore(book, popularity) {
   return availableBoost * (distanceScore * 4 + popularityScore * 1.2);
 }
 
-async function fetchMatchingBooks(q) {
-  const { data, error } = await supabase
-    .from("books")
-    .select("*, libraries(name, latitude, longitude)")
-    .or(`title.ilike.%${q}%,author.ilike.%${q}%,isbn.ilike.%${q}%`)
-    .limit(200);
-
-  if (error) throw error;
-  return (data || []).filter((b) => b.libraries);
-}
-
-async function fetchFuzzyCandidates(q) {
-  const prefix = q.slice(0, Math.min(4, q.length));
-  if (prefix.length < 2) return [];
-
-  const { data, error } = await supabase
-    .from("books")
-    .select("*, libraries(name, latitude, longitude)")
-    .or(`title.ilike.%${prefix}%,author.ilike.%${prefix}%`)
-    .limit(300);
-
-  if (error) throw error;
-
-  return (data || [])
-    .filter((b) => b.libraries)
-    .map((b) => ({
-      book: b,
-      score: Math.max(
-        similarity(q, b.title),
-        similarity(q, b.author || "")
-      ),
-    }))
-    .filter((x) => x.score >= 0.45)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 80)
-    .map((x) => x.book);
-}
-
 /**
  * GET /api/books/search
- * q, lat, lng, radius (km), available (true|false), sort (best|distance|title|author)
+ * q, lat, lng, radius (km), available (true|false), openNow (true|false),
+ * sort (best|distance|title|author)
  */
 export async function searchBooks(req, res) {
   const q = sanitize(req.query.q || "");
@@ -158,6 +286,8 @@ export async function searchBooks(req, res) {
       : null;
   const availableOnly =
     req.query.available === "true" || req.query.available === "1";
+  const openNowOnly =
+    req.query.openNow === "true" || req.query.openNow === "1";
   const sort = ["best", "distance", "title", "author"].includes(req.query.sort)
     ? req.query.sort
     : "best";
@@ -192,6 +322,10 @@ export async function searchBooks(req, res) {
       results = results.filter((b) => b.available !== false);
     }
 
+    if (openNowOnly) {
+      results = results.filter((b) => b.open_now === true);
+    }
+
     if (radius != null && !Number.isNaN(radius) && radius > 0) {
       results = results.filter(
         (b) => b.distance != null && b.distance <= radius
@@ -210,7 +344,16 @@ export async function searchBooks(req, res) {
         const db = b.distance ?? Number.POSITIVE_INFINITY;
         return da - db;
       }
-      // best
+      return (b.rank_score || 0) - (a.rank_score || 0);
+    });
+
+    const editions = groupIntoEditions(results);
+    editions.sort((a, b) => {
+      if (sort === "title") return (a.title || "").localeCompare(b.title || "");
+      if (sort === "author")
+        return (a.author || "").localeCompare(b.author || "");
+      if (sort === "distance")
+        return (a.best_distance ?? 999) - (b.best_distance ?? 999);
       return (b.rank_score || 0) - (a.rank_score || 0);
     });
 
@@ -222,8 +365,11 @@ export async function searchBooks(req, res) {
           query: q,
           fuzzy,
           count: results.length,
+          editions: editions.length,
+          zero: results.length === 0,
           radius,
           availableOnly,
+          openNowOnly,
           sort,
         },
       })
@@ -231,13 +377,15 @@ export async function searchBooks(req, res) {
       .catch((err) => console.error("Analytics error:", err));
 
     res.json({
-      results,
+      results: editions,
       meta: {
         query: q,
         fuzzy,
         suggestion: fuzzy ? suggestion : null,
-        count: results.length,
+        count: editions.length,
+        copy_count: results.length,
         sort,
+        grouped: true,
       },
     });
   } catch (err) {
@@ -398,5 +546,33 @@ export async function trendingBooks(req, res) {
   } catch (err) {
     console.error("Trending error:", err);
     res.status(500).json({ error: "Trending failed" });
+  }
+}
+
+/**
+ * POST /api/books/click
+ * Track result engagement for CTR analytics.
+ * body: { title, library_name?, query? }
+ */
+export async function trackClick(req, res) {
+  try {
+    const { title, library_name, query } = req.body || {};
+    if (!title) {
+      return res.status(400).json({ error: "title required" });
+    }
+
+    await supabase.from("analytics").insert({
+      event_type: "result_click",
+      metadata: {
+        title: String(title).slice(0, 200),
+        library_name: library_name ? String(library_name).slice(0, 200) : null,
+        query: query ? String(query).slice(0, 120) : null,
+      },
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("trackClick:", err);
+    res.status(500).json({ error: "Click track failed" });
   }
 }

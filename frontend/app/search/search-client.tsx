@@ -2,7 +2,9 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import BookResultCard from "../components/BookResultCard";
+import EditionResultCard, {
+  type Edition,
+} from "../components/EditionResultCard";
 import EmptyState from "../components/EmptyState";
 import LibraryMap from "../components/LibraryMap";
 import LoadingSkeleton from "../components/LoadingSkeleton";
@@ -12,18 +14,8 @@ import SearchFilters, {
 } from "../components/SearchFilters";
 import TrendingNearYou from "../components/TrendingNearYou";
 
-type SearchBook = {
-  title: string;
-  author: string;
-  libraryName: string;
-  distance: number;
-  available: boolean;
-  latitude?: number | null;
-  longitude?: number | null;
-};
-
-function libraryKey(b: SearchBook) {
-  return `${b.libraryName}|${b.latitude}|${b.longitude}`;
+function libraryKeyFromEdition(e: Edition) {
+  return `${e.library_name}|${e.latitude}|${e.longitude}`;
 }
 
 export default function SearchClient() {
@@ -31,7 +23,7 @@ export default function SearchClient() {
   const initialQuery = params.get("q") || "";
 
   const [query, setQuery] = useState(initialQuery);
-  const [results, setResults] = useState<SearchBook[]>([]);
+  const [results, setResults] = useState<Edition[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fuzzyNote, setFuzzyNote] = useState<string | null>(null);
@@ -41,32 +33,58 @@ export default function SearchClient() {
   const [filters, setFilters] = useState<SearchFiltersState>({
     radius: "",
     availableOnly: false,
+    openNowOnly: false,
     sort: "best",
   });
 
   const mapLibraries = useMemo(() => {
     const seen = new Set<string>();
-    return results
-      .filter(
-        (b) =>
-          typeof b.latitude === "number" &&
-          typeof b.longitude === "number" &&
-          !Number.isNaN(b.latitude) &&
-          !Number.isNaN(b.longitude)
-      )
-      .filter((b) => {
-        const key = libraryKey(b);
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .map((b) => ({
-        id: libraryKey(b),
-        name: b.libraryName,
-        latitude: b.latitude as number,
-        longitude: b.longitude as number,
-      }));
+    const libs: {
+      id: string;
+      name: string;
+      latitude: number;
+      longitude: number;
+    }[] = [];
+
+    for (const edition of results) {
+      for (const c of edition.copies || []) {
+        if (
+          typeof c.latitude !== "number" ||
+          typeof c.longitude !== "number" ||
+          Number.isNaN(c.latitude) ||
+          Number.isNaN(c.longitude)
+        ) {
+          continue;
+        }
+        const id = `${c.library_name}|${c.latitude}|${c.longitude}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        libs.push({
+          id,
+          name: c.library_name,
+          latitude: c.latitude,
+          longitude: c.longitude,
+        });
+      }
+    }
+    return libs;
   }, [results]);
+
+  const trackClick = async (edition: Edition) => {
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/books/click`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: edition.title,
+          library_name: edition.library_name,
+          query,
+        }),
+      });
+    } catch {
+      /* non-blocking */
+    }
+  };
 
   const selectLibrary = (id: string) => {
     setSelectedLibraryId(id);
@@ -104,6 +122,7 @@ export default function SearchClient() {
           url.searchParams.set("sort", filters.sort);
           if (filters.radius) url.searchParams.set("radius", filters.radius);
           if (filters.availableOnly) url.searchParams.set("available", "true");
+          if (filters.openNowOnly) url.searchParams.set("openNow", "true");
 
           const res = await fetch(url.toString());
           if (!res.ok) throw new Error("Failed");
@@ -116,15 +135,40 @@ export default function SearchClient() {
               : [];
           const meta = payload.meta;
 
-          const mapped: SearchBook[] = data.map((b: any) => ({
-            title: b.title,
-            author: b.author,
-            libraryName: b.library_name,
-            distance: b.distance ?? 0,
-            available: b.available !== false,
-            latitude: b.latitude ?? b.libraries?.latitude ?? null,
-            longitude: b.longitude ?? b.libraries?.longitude ?? null,
-          }));
+          // Support both grouped editions and legacy flat rows
+          const mapped: Edition[] = data.map((b: any) => {
+            if (Array.isArray(b.copies)) {
+              return b as Edition;
+            }
+            return {
+              key: `${b.title}|${b.author}|${b.library_name}`,
+              title: b.title,
+              author: b.author,
+              isbns: b.isbn ? [b.isbn] : [],
+              copy_count: 1,
+              library_count: 1,
+              best_distance: b.distance ?? null,
+              available: b.available !== false,
+              open_now: b.open_now === true,
+              library_name: b.library_name,
+              latitude: b.latitude,
+              longitude: b.longitude,
+              distance: b.distance,
+              copies: [
+                {
+                  library_name: b.library_name,
+                  distance: b.distance ?? null,
+                  available: b.available !== false,
+                  latitude: b.latitude,
+                  longitude: b.longitude,
+                  isbn: b.isbn,
+                  opens_at: b.opens_at,
+                  closes_at: b.closes_at,
+                  open_now: b.open_now,
+                },
+              ],
+            };
+          });
 
           setResults(mapped);
 
@@ -158,8 +202,8 @@ export default function SearchClient() {
         Find books near you
       </h1>
       <p className="text-gray-400 mb-6">
-        Ranked by availability, distance, and popularity. Click a result to pin
-        it on the map.
+        Editions grouped across libraries. Filter by distance, stock, and open
+        now.
       </p>
 
       <SearchBar
@@ -199,14 +243,15 @@ export default function SearchClient() {
           />
         )}
 
-        {results.map((book, i) => {
-          const id = libraryKey(book);
+        {results.map((edition) => {
+          const id = libraryKeyFromEdition(edition);
           return (
-            <div key={i} data-library-id={id}>
-              <BookResultCard
-                book={book}
+            <div key={edition.key} data-library-id={id}>
+              <EditionResultCard
+                edition={edition}
                 selected={selectedLibraryId === id}
-                onSelect={() => selectLibrary(id)}
+                onSelect={selectLibrary}
+                onEngage={() => trackClick(edition)}
               />
             </div>
           );
