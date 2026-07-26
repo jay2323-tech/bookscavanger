@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabaseClient";
+import { clearOAuthIntent } from "@/app/library/resolveAuthDestination";
 
 export default function AdminOAuthCallback() {
     const router = useRouter();
@@ -14,6 +15,7 @@ export default function AdminOAuthCallback() {
 
                 if (sessionError || !session) {
                     console.error("Session error or not found", sessionError);
+                    clearOAuthIntent();
                     await supabase.auth.signOut();
                     router.replace("/admin/login");
                     return;
@@ -31,18 +33,19 @@ export default function AdminOAuthCallback() {
 
                 if (!res.ok) {
                     console.error("Admin verification failed with status:", res.status);
+                    clearOAuthIntent();
                     await supabase.auth.signOut();
                     router.replace("/admin/login");
                     return;
                 }
 
+                clearOAuthIntent();
                 router.replace("/admin/dashboard");
             } catch (error) {
                 console.error("Unexpected error during admin check:", error);
+                clearOAuthIntent();
                 await supabase.auth.signOut();
                 router.replace("/admin/login");
-            } finally {
-                // Loading state handling if applicable
             }
         };
 

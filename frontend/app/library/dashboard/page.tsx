@@ -3,48 +3,62 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabaseClient";
+import { fetchOnboardingStatus } from "@/app/library/fetchOnboardingStatus";
+import {
+  clearOAuthIntent,
+  resolveAuthDestination,
+} from "@/app/library/resolveAuthDestination";
 
 export default function DashboardRouter() {
-    const router = useRouter();
+  const router = useRouter();
 
-    useEffect(() => {
-        const routeUser = async () => {
-            const {
-                data: { user },
-            } = await supabase.auth.getUser();
+  useEffect(() => {
+    const routeUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-            if (!user) {
-                router.replace("/library/login");
-                return;
+      if (!session?.user) {
+        router.replace("/library/login");
+        return;
+      }
+
+      try {
+        const status = await fetchOnboardingStatus(session.access_token);
+        const library = status.library
+          ? {
+              approved: status.library.approved,
+              rejected: status.library.rejected,
             }
+          : null;
 
-            const { data: profile, error } = await supabase
-                .from("profiles")
-                .select("role")
-                .eq("id", user.id)
-                .single();
+        if (status.role === "customer") {
+          if (library && (!library.approved || library.rejected)) {
+            const dest = resolveAuthDestination({
+              role: status.role,
+              library,
+            });
+            clearOAuthIntent();
+            router.replace(dest);
+            return;
+          }
+          router.replace("/library/dashboard/customer");
+          return;
+        }
 
-            if (error || !profile) {
-                router.replace("/");
-                return;
-            }
+        const dest = resolveAuthDestination({
+          role: status.role,
+          library,
+        });
+        clearOAuthIntent();
+        router.replace(dest);
+      } catch {
+        router.replace("/");
+      }
+    };
 
-            if (profile.role === "admin") {
-                router.replace("/admin/dashboard");
-                return;
-            }
+    routeUser();
+  }, [router]);
 
-            if (profile.role === "librarian") {
-                router.replace("/library/dashboard/librarian");
-                return;
-            }
-
-            // default → customer
-            router.replace("/library/dashboard/customer");
-        };
-
-        routeUser();
-    }, [router]);
-
-    return null;
+  return null;
 }

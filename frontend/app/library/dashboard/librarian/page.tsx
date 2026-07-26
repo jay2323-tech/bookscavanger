@@ -93,19 +93,28 @@ export default function LibrarianDashboard() {
 
         const user = session?.user;
 
-        if (!user) {
+        if (!user || !session?.access_token) {
           router.replace("/library/login");
           return;
         }
 
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single();
+        // Uses backend status (self-heals missing librarian profile after approve)
+        const statusRes = await fetch(
+          `${backend}/api/library/onboarding/status`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } }
+        );
+        const status = statusRes.ok ? await statusRes.json() : null;
 
-        if (profileError || !profile || profile.role !== "librarian") {
-          router.replace("/");
+        if (
+          !status ||
+          status.role !== "librarian" ||
+          !status.library?.approved
+        ) {
+          if (status?.library && !status.library.approved) {
+            router.replace("/library/pending");
+          } else {
+            router.replace("/");
+          }
           return;
         }
 

@@ -4,13 +4,34 @@ import { supabase } from "@/app/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+type StatusPayload = {
+  role: string;
+  library: {
+    id: string | number;
+    name?: string;
+    approved: boolean;
+    rejected: boolean;
+  } | null;
+};
+
+async function fetchStatus(token: string): Promise<StatusPayload> {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/library/onboarding/status`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) throw new Error("Failed to check approval status");
+  return res.json();
+}
+
 export default function PendingApprovalPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [libraryName, setLibraryName] = useState<string | null>(null);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     let isMounted = true;
+    let nullLibraryHits = 0;
 
     const checkApprovalStatus = async () => {
       try {
@@ -21,57 +42,56 @@ export default function PendingApprovalPage() {
 
         if (sessionError) throw sessionError;
 
-        const user = session?.user;
-
-        if (!user) {
-          if (isMounted) {
-            router.replace("/library/login");
-          }
+        if (!session?.user) {
+          if (isMounted) router.replace("/library/login");
           return;
         }
 
-        const { data: library, error: libraryError } = await supabase
-          .from("libraries")
-          .select("approved, rejected")
-          .eq("supabase_user_id", user.id)
-          .maybeSingle();
-
-        if (libraryError) throw libraryError;
-
+        const status = await fetchStatus(session.access_token);
         if (!isMounted) return;
 
-        // 🔴 Rejected
-        if (library?.rejected) {
-          clearInterval(interval);
-          await supabase.auth.signOut(); // Ensure this completes before redirect might be safer, but logic here follows request
-          if (isMounted) {
-            router.replace("/library/rejected");
+        const library = status.library;
+
+        if (!library) {
+          nullLibraryHits += 1;
+          // Brief grace period after submit before bouncing to onboarding
+          if (nullLibraryHits >= 3) {
+            clearInterval(interval);
+            router.replace("/library/onboarding");
           }
           return;
         }
 
-        // ✅ Approved → librarian dashboard
-        if (library?.approved) {
+        nullLibraryHits = 0;
+        if (library.name) setLibraryName(library.name);
+
+        if (library.rejected) {
           clearInterval(interval);
-          if (isMounted) {
-            router.replace("/library/dashboard/librarian");
-          }
+          router.replace("/library/rejected");
           return;
         }
-      } catch (err: any) {
+
+        if (library.approved) {
+          // Status API self-heals role → librarian; don't stay stuck on pending
+          clearInterval(interval);
+          window.location.assign("/library/dashboard/librarian");
+          return;
+        }
+
+        setError(null);
+      } catch (err: unknown) {
         console.error("Error checking approval status:", err);
         if (isMounted) {
           setError(
-            err.message || "An unexpected error occurred. Please try again."
+            err instanceof Error
+              ? err.message
+              : "An unexpected error occurred. Please try again."
           );
         }
       }
     };
 
-    // Run once immediately
     checkApprovalStatus();
-
-    // Poll every 3 seconds
     interval = setInterval(checkApprovalStatus, 3000);
 
     return () => {
@@ -80,30 +100,67 @@ export default function PendingApprovalPage() {
     };
   }, [router]);
 
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    router.replace("/");
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-bs-paper text-bs-ink">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-bs-paper text-bs-ink px-4 bs-field">
       {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500 rounded-lg text-red-200 text-center max-w-md">
+        <div className="mb-6 p-4 border border-bs-danger/30 bg-bs-danger/5 rounded-lg text-bs-danger text-center max-w-md">
           <p className="font-semibold">Unable to check status</p>
           <p className="text-sm opacity-90">{error}</p>
         </div>
       )}
-      <h1 className="text-3xl font-bold text-bs-teal mb-4">
-        ⏳ Approval Pending
+      <p className="text-xs uppercase tracking-[0.14em] text-bs-muted mb-2">
+        Librarian
+      </p>
+      <h1
+        className="text-3xl font-semibold text-bs-ink mb-4 text-center"
+        style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+      >
+        Approval pending
       </h1>
       <p className="text-bs-muted text-center max-w-md">
-        Your librarian account is under review.
-        <br />
-        You’ll get access once approved by the admin.
+        {libraryName ? (
+          <>
+            <span className="text-bs-ink font-medium">{libraryName}</span> is
+            under review.
+            <br />
+          </>
+        ) : (
+          <>Your librarian account is under review.
+            <br />
+          </>
+        )}
+        You&apos;ll get access once an admin approves it.
       </p>
-      {error && (
+      <div className="mt-8 flex flex-wrap gap-3 justify-center">
+        {error && (
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-bs-gold text-bs-gold-ink font-semibold rounded-lg"
+          >
+            Retry
+          </button>
+        )}
         <button
-          onClick={() => window.location.reload()}
-          className="mt-6 px-4 py-2 bg-bs-gold text-bs-gold-ink font-semibold rounded hover:bg-[#b5952f] transition-colors"
+          type="button"
+          onClick={() => router.push("/library/onboarding?edit=1")}
+          className="px-4 py-2 border border-bs-line rounded-lg text-sm text-bs-muted hover:text-bs-teal"
         >
-          Retry
+          Edit application
         </button>
-      )}
+        <button
+          type="button"
+          onClick={signOut}
+          className="px-4 py-2 border border-bs-line rounded-lg text-sm text-bs-muted hover:text-bs-danger"
+        >
+          Sign out
+        </button>
+      </div>
     </div>
   );
 }

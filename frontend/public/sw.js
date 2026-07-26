@@ -1,5 +1,5 @@
 /* BookScavenger PWA — cache shell for offline reopen */
-const CACHE = "bookscavanger-shell-v1";
+const CACHE = "bookscavanger-shell-v2";
 const PRECACHE = ["/", "/search", "/plan", "/manifest.webmanifest", "/icons/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -22,8 +22,15 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  // Never cache API / auth
-  if (url.pathname.startsWith("/api") || url.hostname.includes("supabase") || url.hostname.includes("onrender")) {
+  // Never touch API, auth, Supabase, or library/admin auth flows
+  if (
+    url.pathname.startsWith("/api") ||
+    url.pathname.startsWith("/library/") ||
+    url.pathname.startsWith("/admin/") ||
+    url.hostname.includes("supabase") ||
+    url.hostname.includes("onrender") ||
+    url.hostname === "localhost" && url.port === "8080"
+  ) {
     return;
   }
 
@@ -41,18 +48,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for static
+  // Cache-first for static (don't throw if network fails)
   event.respondWith(
-    caches.match(request).then(
-      (cached) =>
-        cached ||
-        fetch(request).then((res) => {
-          if (res.ok && url.origin === self.location.origin) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(request, copy));
-          }
-          return res;
-        })
-    )
+    caches.match(request).then(async (cached) => {
+      if (cached) return cached;
+      try {
+        const res = await fetch(request);
+        if (res.ok && url.origin === self.location.origin) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(request, copy));
+        }
+        return res;
+      } catch {
+        return new Response("", { status: 504, statusText: "Offline" });
+      }
+    })
   );
 });

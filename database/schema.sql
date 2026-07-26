@@ -31,6 +31,10 @@ create table if not exists public.libraries (
 create index if not exists libraries_user_idx
   on public.libraries (supabase_user_id);
 
+create unique index if not exists libraries_supabase_user_unique
+  on public.libraries (supabase_user_id)
+  where supabase_user_id is not null;
+
 -- Books
 create table if not exists public.books (
   id bigint generated always as identity primary key,
@@ -57,7 +61,8 @@ create table if not exists public.analytics (
   created_at timestamptz not null default now()
 );
 
--- Auto-create customer profile on signup
+-- Auto-create customer profile on signup (role always customer;
+-- librarian/admin are granted only by backend / service role)
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -68,8 +73,12 @@ begin
   insert into public.profiles (id, full_name, role)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data->>'name', new.email),
-    coalesce(new.raw_user_meta_data->>'role', 'customer')
+    coalesce(
+      new.raw_user_meta_data->>'name',
+      new.raw_user_meta_data->>'full_name',
+      new.email
+    ),
+    'customer'
   )
   on conflict (id) do nothing;
   return new;

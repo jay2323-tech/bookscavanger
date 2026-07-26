@@ -2,6 +2,12 @@
 
 import RoleSelector from "@/app/components/RoleSelector";
 import { supabase } from "@/app/lib/supabaseClient";
+import { fetchOnboardingStatus } from "@/app/library/fetchOnboardingStatus";
+import {
+  clearOAuthIntent,
+  resolveAuthDestination,
+  setOAuthIntent,
+} from "@/app/library/resolveAuthDestination";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -13,6 +19,7 @@ export default function SignupPage() {
   const [role, setRole] = useState<Role>("customer");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -21,33 +28,56 @@ export default function SignupPage() {
     confirmPassword: "",
   });
 
-  const signupCustomer = async () => {
+  const routeAfterSession = async (accessToken: string) => {
+    const status = await fetchOnboardingStatus(accessToken);
+    const dest = resolveAuthDestination({
+      role: status.role,
+      library: status.library
+        ? {
+            approved: status.library.approved,
+            rejected: status.library.rejected,
+          }
+        : null,
+      oauthIntent: "reader",
+    });
+    clearOAuthIntent();
+    router.replace(dest);
+  };
+
+  const signupCustomerEmail = async () => {
     if (form.password.length < 8)
       throw new Error("Password must be at least 8 characters");
 
     if (form.password !== form.confirmPassword)
       throw new Error("Passwords do not match");
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
       options: {
         data: {
-          role: "customer",
           name: form.name,
         },
       },
     });
 
     if (error) throw error;
+
+    if (data.session?.access_token) {
+      await routeAfterSession(data.session.access_token);
+      return;
+    }
+
+    setInfo("Check your email to confirm your account, then log in.");
     router.replace("/library/login");
   };
 
-  const signupLibrarianWithGoogle = async () => {
+  const signupWithGoogle = async (intent: "reader" | "librarian") => {
+    setOAuthIntent(intent);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/library/onboarding`,
+        redirectTo: `${window.location.origin}/library/oauth-callback`,
       },
     });
 
@@ -56,17 +86,30 @@ export default function SignupPage() {
 
   const handleSignup = async () => {
     setError("");
+    setInfo("");
     setLoading(true);
 
     try {
       if (role === "customer") {
-        await signupCustomer();
+        await signupCustomerEmail();
       } else {
-        await signupLibrarianWithGoogle();
+        await signupWithGoogle("librarian");
       }
-    } catch (err: any) {
-      setError(err.message || "Signup failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Signup failed");
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReaderGoogle = async () => {
+    setError("");
+    setInfo("");
+    setLoading(true);
+    try {
+      await signupWithGoogle("reader");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Signup failed");
       setLoading(false);
     }
   };
@@ -85,6 +128,17 @@ export default function SignupPage() {
 
         {role === "customer" && (
           <>
+            <button
+              type="button"
+              onClick={handleReaderGoogle}
+              disabled={loading}
+              className="w-full mb-4 border border-bs-line bg-bs-paper text-bs-ink py-3 rounded-lg font-semibold hover:border-bs-teal"
+            >
+              {loading ? "Redirecting..." : "Continue with Google"}
+            </button>
+
+            <div className="text-center text-bs-muted text-sm mb-4">OR</div>
+
             <input
               placeholder="Full Name"
               className="w-full mb-3 px-4 py-3 rounded-lg bg-bs-paper border border-bs-line text-bs-ink"
@@ -124,18 +178,22 @@ export default function SignupPage() {
         )}
 
         {error && <p className="text-bs-danger text-sm mb-3">{error}</p>}
+        {info && <p className="text-bs-teal text-sm mb-3">{info}</p>}
 
-        <button
-          onClick={handleSignup}
-          disabled={loading}
-          className="w-full bg-bs-gold text-bs-gold-ink py-3 rounded-lg font-semibold hover:brightness-95"
-        >
-          {loading
-            ? "Processing..."
-            : role === "librarian"
-              ? "Continue with Google"
-              : "Sign up"}
-        </button>
+        {(role === "librarian" || role === "customer") && (
+          <button
+            type="button"
+            onClick={handleSignup}
+            disabled={loading}
+            className="w-full bg-bs-gold text-bs-gold-ink py-3 rounded-lg font-semibold hover:brightness-95"
+          >
+            {loading
+              ? "Processing..."
+              : role === "librarian"
+                ? "Continue with Google"
+                : "Sign up with email"}
+          </button>
+        )}
 
         <p className="text-center text-sm text-bs-muted mt-6">
           Already have an account?{" "}

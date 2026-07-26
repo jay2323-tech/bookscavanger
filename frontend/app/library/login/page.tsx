@@ -4,6 +4,19 @@ import { supabase } from "@/app/lib/supabaseClient";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { fetchOnboardingStatus } from "@/app/library/fetchOnboardingStatus";
+import {
+  applySafeNext,
+  clearOAuthIntent,
+  getOAuthIntent,
+  resolveAuthDestination,
+  setOAuthIntent,
+} from "@/app/library/resolveAuthDestination";
+
+function readNextParam() {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("next");
+}
 
 export default function LibraryLoginPage() {
   const router = useRouter();
@@ -12,144 +25,73 @@ export default function LibraryLoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [asLibrarian, setAsLibrarian] = useState(false);
 
-  // =========================================================
-  // 🔐 EMAIL/PASSWORD LOGIN
-  // =========================================================
   const handlePasswordLogin = async () => {
     setError("");
     setLoading(true);
 
     try {
-      const { data, error: loginErr } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { data, error: loginErr } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
       if (loginErr) throw loginErr;
-      if (!data.user) throw new Error("Authentication failed.");
+      if (!data.session?.access_token || !data.user) {
+        throw new Error("Authentication failed.");
+      }
 
-      await handlePostLogin(data.user);
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+      await handlePostLogin(data.session.access_token);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }
   };
 
-  // =========================================================
-  // 🌍 GOOGLE LOGIN
-  // =========================================================
   const handleGoogleLogin = async () => {
     setError("");
     setLoading(true);
 
     try {
-      sessionStorage.setItem("oauth_intent", "library");
+      setOAuthIntent(asLibrarian ? "librarian" : "reader");
+      const callback = new URL(
+        "/library/oauth-callback",
+        window.location.origin
+      );
+      const next = readNextParam();
+      if (next) callback.searchParams.set("next", next);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/library/oauth-callback`,
+          redirectTo: callback.toString(),
         },
       });
 
       if (error) throw error;
-    } catch (err: any) {
-      setError(err.message || "Google login failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Google login failed");
       setLoading(false);
     }
   };
 
-  // =========================================================
-  // 🎯 ROLE + APPROVAL CHECK (DATABASE IS SOURCE OF TRUTH)
-  // =========================================================
-  const handlePostLogin = async (user: any) => {
-    // 1️⃣ Get role from profiles table
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (profileError || !profile) {
-      throw new Error("Profile not found.");
-    }
-
-    const role = profile.role;
-
-    // =========================
-    // 👑 ADMIN FLOW
-    // =========================
-    if (role === "admin") {
-      router.replace("/admin/dashboard");
-      return;
-    }
-
-    // =========================
-    // 📚 LIBRARIAN FLOW
-    // =========================
-    if (role === "librarian") {
-      const { data: library, error: libErr } = await supabase
-        .from("libraries")
-        .select("approved, rejected")
-        .eq("supabase_user_id", user.id)
-        .maybeSingle();
-
-      if (libErr) {
-        throw new Error("Failed to fetch library.");
-      }
-
-      // 🔥 No library row → onboarding not completed
-      if (!library) {
-        router.replace("/library/onboarding");
-        return;
-      }
-
-      if (library.rejected) {
-        await supabase.auth.signOut();
-        router.replace("/library/rejected");
-        return;
-      }
-
-      if (!library.approved) {
-        router.replace("/library/pending");
-        return;
-      }
-
-      // ✅ Approved librarian
-      router.replace("/library/dashboard/librarian");
-      return;
-    }
-
-    // =========================
-    // 👤 CUSTOMER FLOW
-    // =========================
-    if (role === "customer") {
-      // Customer who applied as librarian (pending approval)
-      const { data: library } = await supabase
-        .from("libraries")
-        .select("approved, rejected")
-        .eq("supabase_user_id", user.id)
-        .maybeSingle();
-
-      if (library) {
-        if (library.rejected) {
-          await supabase.auth.signOut();
-          router.replace("/library/rejected");
-          return;
-        }
-        if (!library.approved) {
-          router.replace("/library/pending");
-          return;
-        }
-      }
-
-      router.replace("/search");
-      return;
-    }
-
-    throw new Error("User role not recognized.");
+  const handlePostLogin = async (accessToken: string) => {
+    const status = await fetchOnboardingStatus(accessToken);
+    const intent = asLibrarian ? "librarian" : getOAuthIntent();
+    let dest = resolveAuthDestination({
+      role: status.role,
+      library: status.library
+        ? {
+            approved: status.library.approved,
+            rejected: status.library.rejected,
+          }
+        : null,
+      oauthIntent: intent,
+    });
+    dest = applySafeNext(dest, readNextParam());
+    clearOAuthIntent();
+    router.replace(dest);
   };
 
   return (
@@ -163,12 +105,23 @@ export default function LibraryLoginPage() {
         </h1>
 
         <button
+          type="button"
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full mb-4 border border-bs-line bg-bs-paper text-bs-ink py-3 rounded-lg font-semibold hover:border-bs-teal"
+          className="w-full mb-3 border border-bs-line bg-bs-paper text-bs-ink py-3 rounded-lg font-semibold hover:border-bs-teal"
         >
           {loading ? "Redirecting..." : "Continue with Google"}
         </button>
+
+        <label className="flex items-center gap-2 mb-4 text-sm text-bs-muted cursor-pointer">
+          <input
+            type="checkbox"
+            checked={asLibrarian}
+            onChange={(e) => setAsLibrarian(e.target.checked)}
+            className="rounded border-bs-line"
+          />
+          Signing in as a library?
+        </label>
 
         <div className="text-center text-bs-muted text-sm mb-4">OR</div>
 
@@ -191,6 +144,7 @@ export default function LibraryLoginPage() {
         {error && <p className="text-bs-danger text-sm mb-3">{error}</p>}
 
         <button
+          type="button"
           onClick={handlePasswordLogin}
           disabled={loading}
           className="w-full bg-bs-gold text-bs-gold-ink py-3 rounded-lg font-semibold hover:brightness-95"
@@ -199,7 +153,7 @@ export default function LibraryLoginPage() {
         </button>
 
         <p className="text-center text-sm text-bs-muted mt-6">
-          Don’t have an account?{" "}
+          Don&apos;t have an account?{" "}
           <Link href="/library/signup" className="text-bs-teal font-medium">
             Sign up
           </Link>

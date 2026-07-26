@@ -86,7 +86,10 @@ export default function EditionResultCard({
     setMsg("");
     const token = await getToken();
     if (!token) {
-      setMsg("Login required to request a hold");
+      const next = encodeURIComponent(
+        `${window.location.pathname}${window.location.search}`
+      );
+      window.location.href = `/library/login?next=${next}`;
       return;
     }
     const c = copy || nearest;

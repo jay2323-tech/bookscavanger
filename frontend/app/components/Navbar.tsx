@@ -24,7 +24,7 @@ export default function Navbar() {
           .from("profiles")
           .select("role")
           .eq("id", nextUser.id)
-          .single();
+          .maybeSingle();
         setRole(profile?.role ?? null);
       } else {
         setRole(null);
@@ -42,7 +42,7 @@ export default function Navbar() {
           .from("profiles")
           .select("role")
           .eq("id", session.user.id)
-          .single()
+          .maybeSingle()
           .then(({ data: profile }) => setRole(profile?.role ?? null));
       } else {
         setRole(null);

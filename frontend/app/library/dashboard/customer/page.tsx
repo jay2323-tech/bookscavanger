@@ -43,12 +43,30 @@ export default function CustomerDashboard() {
       } = await supabase.auth.getSession();
 
       if (!session?.user) {
-        router.replace("/library/login");
+        router.replace("/library/login?next=/library/dashboard/customer");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, name")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (profile?.role === "librarian") {
+        router.replace("/library/dashboard/librarian");
+        return;
+      }
+      if (profile?.role === "admin") {
+        router.replace("/admin/dashboard");
         return;
       }
 
       setName(
-        session.user.user_metadata?.name || session.user.email || "Reader"
+        profile?.name ||
+          session.user.user_metadata?.name ||
+          session.user.email ||
+          "Reader"
       );
       const token = session.access_token;
       const headers = { Authorization: `Bearer ${token}` };

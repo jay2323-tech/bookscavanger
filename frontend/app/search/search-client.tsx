@@ -268,7 +268,10 @@ export default function SearchClient() {
       data: { session },
     } = await supabase.auth.getSession();
     if (!session?.access_token) {
-      setAlertMsg("Login required to create an alert");
+      const next = encodeURIComponent(
+        `${window.location.pathname}${window.location.search}`
+      );
+      window.location.href = `/library/login?next=${next}`;
       return;
     }
 

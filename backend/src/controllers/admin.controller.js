@@ -117,27 +117,57 @@ export const approveLibrarian = async (req, res) => {
       });
     }
 
-    // 3️⃣ Update library status
-    const { error: updateError } = await supabaseAdmin
-      .from("libraries")
-      .update({
-        approved: true,
-        rejected: false,
-      })
-      .eq("id", libraryId);
+    // Prefer atomic RPC when migration 004 is applied
+    const { error: rpcError } = await supabaseAdmin.rpc("approve_librarian", {
+      p_library_id: libraryId,
+    });
 
-    if (updateError) {
-      throw updateError;
+    const rpcMissing =
+      !!rpcError &&
+      (rpcError.code === "PGRST202" ||
+        /could not find the function|schema cache/i.test(
+          String(rpcError.message || "")
+        ));
+
+    if (rpcError && !rpcMissing) {
+      console.warn("approve_librarian RPC:", rpcError.message);
+      throw rpcError;
     }
 
-    // 4️⃣ Update profile role (SOURCE OF TRUTH)
+    if (rpcMissing) {
+      const { error: updateError } = await supabaseAdmin
+        .from("libraries")
+        .update({
+          approved: true,
+          rejected: false,
+        })
+        .eq("id", libraryId);
+
+      if (updateError) {
+        throw updateError;
+      }
+    }
+
+    // Always upsert profile — RPC UPDATE is a no-op when the row is missing
     if (library.supabase_user_id) {
       const { error: profileUpdateError } = await supabaseAdmin
         .from("profiles")
-        .update({ role: "librarian" })
-        .eq("id", library.supabase_user_id);
+        .upsert(
+          {
+            id: library.supabase_user_id,
+            role: "librarian",
+            approved: true,
+          },
+          { onConflict: "id" }
+        );
 
       if (profileUpdateError) {
+        if (rpcMissing) {
+          await supabaseAdmin
+            .from("libraries")
+            .update({ approved: false, rejected: false })
+            .eq("id", libraryId);
+        }
         throw profileUpdateError;
       }
     }
@@ -306,6 +336,50 @@ export const getSearchInsights = async (req, res) => {
   } catch (err) {
     console.error("getSearchInsights:", err);
     return res.status(500).json({ error: "Failed to load search insights" });
+  }
+};
+
+/**
+ * 📚 All libraries (admin directory)
+ */
+export const getLibraries = async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("libraries")
+      .select(
+        `
+        id,
+        name,
+        email,
+        latitude,
+        longitude,
+        opens_at,
+        closes_at,
+        approved,
+        rejected,
+        created_at,
+        books(count)
+      `
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    const libraries = (data || []).map((row) => {
+      const bookCount = Array.isArray(row.books)
+        ? Number(row.books[0]?.count ?? 0)
+        : 0;
+      const { books: _books, ...rest } = row;
+      let status = "pending";
+      if (row.rejected) status = "rejected";
+      else if (row.approved) status = "approved";
+      return { ...rest, book_count: bookCount, status };
+    });
+
+    return res.json(libraries);
+  } catch (err) {
+    console.error("getLibraries:", err);
+    return res.status(500).json({ error: "Failed to fetch libraries" });
   }
 };
 

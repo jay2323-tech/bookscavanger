@@ -48,7 +48,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body
         className={`${display.variable} ${body.variable} bg-bs-paper text-bs-ink min-h-screen antialiased`}
         style={{ fontFamily: "var(--font-body), system-ui, sans-serif" }}

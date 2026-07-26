@@ -15,7 +15,10 @@ drop policy if exists "profiles_update_own_no_role" on public.profiles;
 create policy "profiles_update_own_no_role" on public.profiles
   for update
   using (auth.uid() = id)
-  with check (auth.uid() = id);
+  with check (
+    auth.uid() = id
+    and role = (select p.role from public.profiles p where p.id = auth.uid())
+  );
 
 -- Libraries: anyone can read approved libraries; owners read their own
 drop policy if exists "libraries_select_approved_or_own" on public.libraries;

@@ -3,6 +3,45 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabaseClient";
+import { fetchOnboardingStatus } from "@/app/library/fetchOnboardingStatus";
+import {
+  applySafeNext,
+  clearOAuthIntent,
+  getOAuthIntent,
+  resolveAuthDestination,
+} from "@/app/library/resolveAuthDestination";
+
+async function ensureSessionFromUrl() {
+  // Implicit-flow tokens often arrive in the hash; set them explicitly if needed.
+  if (typeof window === "undefined") return null;
+
+  const hash = window.location.hash?.replace(/^#/, "") || "";
+  if (hash.includes("access_token")) {
+    const params = new URLSearchParams(hash);
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    if (access_token) {
+      const { data, error } = await supabase.auth.setSession({
+        access_token,
+        refresh_token: refresh_token || "",
+      });
+      if (!error && data.session) {
+        // Clean hash so refreshes don't re-process
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search
+        );
+        return data.session;
+      }
+    }
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session;
+}
 
 export default function OAuthCallbackPage() {
   const router = useRouter();
@@ -11,96 +50,96 @@ export default function OAuthCallbackPage() {
   useEffect(() => {
     let cancelled = false;
 
+    const next =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("next")
+        : null;
+
     const routeUser = async () => {
-      // Wait briefly for hash session to be parsed
-      for (let i = 0; i < 20; i++) {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+      let session = await ensureSessionFromUrl();
 
-        if (session?.user) {
-          const user = session.user;
+      for (let i = 0; i < 25 && !session?.access_token; i++) {
+        await new Promise((r) => setTimeout(r, 150));
+        const again = await supabase.auth.getSession();
+        session = again.data.session;
+      }
 
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", user.id)
-            .single();
+      if (cancelled) return;
 
-          if (cancelled) return;
+      if (!session?.access_token || !session.user) {
+        setMessage("Could not establish session. Try again.");
+        clearOAuthIntent();
+        router.replace("/library/login");
+        return;
+      }
 
-          if (profileError || !profile) {
-            router.replace("/library/login");
-            return;
+      const intent = getOAuthIntent();
+
+      // Prefer backend status (bypasses RLS); fall back to intent-only routing
+      try {
+        let status = null as Awaited<
+          ReturnType<typeof fetchOnboardingStatus>
+        > | null;
+
+        for (let p = 0; p < 6; p++) {
+          try {
+            status = await fetchOnboardingStatus(session.access_token);
+            if (status?.role) break;
+          } catch (e) {
+            console.warn("onboarding status attempt failed", e);
           }
-
-          const role = profile.role;
-
-          if (role === "admin") {
-            router.replace("/admin/dashboard");
-            return;
-          }
-
-          if (role === "librarian") {
-            const { data: library } = await supabase
-              .from("libraries")
-              .select("approved, rejected")
-              .eq("supabase_user_id", user.id)
-              .maybeSingle();
-
-            if (!library) {
-              router.replace("/library/onboarding");
-              return;
-            }
-            if (library.rejected) {
-              await supabase.auth.signOut();
-              router.replace("/library/rejected");
-              return;
-            }
-            if (!library.approved) {
-              router.replace("/library/pending");
-              return;
-            }
-            router.replace("/library/dashboard/librarian");
-            return;
-          }
-
-          if (role === "customer") {
-            const { data: library } = await supabase
-              .from("libraries")
-              .select("approved, rejected")
-              .eq("supabase_user_id", user.id)
-              .maybeSingle();
-
-            if (library) {
-              if (library.rejected) {
-                await supabase.auth.signOut();
-                router.replace("/library/rejected");
-                return;
-              }
-              if (!library.approved) {
-                router.replace("/library/pending");
-                return;
-              }
-              router.replace("/library/dashboard/librarian");
-              return;
-            }
-
-            router.replace("/search");
-            return;
-          }
-
-          router.replace("/");
-          return;
+          await new Promise((r) => setTimeout(r, 250));
         }
 
-        await new Promise((r) => setTimeout(r, 150));
+        if (cancelled) return;
+
+        const role = status?.role || "customer";
+        const library = status?.library
+          ? {
+              approved: status.library.approved,
+              rejected: status.library.rejected,
+            }
+          : null;
+
+        let dest = resolveAuthDestination({
+          role,
+          library,
+          oauthIntent: intent,
+        });
+
+        // Librarian signup must never die on /login or /search when intent is set
+        if (
+          intent === "librarian" &&
+          (dest === "/search" || dest === "/library/login")
+        ) {
+          dest = "/library/onboarding";
+        }
+
+        dest = applySafeNext(dest, next);
+        clearOAuthIntent();
+        setMessage("Redirecting…");
+        window.location.assign(dest);
+        return;
+      } catch (err) {
+        console.error("oauth routing error", err);
       }
 
-      if (!cancelled) {
-        setMessage("Login timed out. Try again.");
-        router.replace("/library/login");
+      // Last resort: route by intent alone
+      if (cancelled) return;
+      if (intent === "librarian") {
+        clearOAuthIntent();
+        window.location.assign("/library/onboarding");
+        return;
       }
+      if (intent === "admin") {
+        clearOAuthIntent();
+        window.location.assign("/admin/oauth-callback");
+        return;
+      }
+
+      clearOAuthIntent();
+      setMessage("Signed in, but routing failed. Opening search…");
+      window.location.assign("/search");
     };
 
     routeUser();

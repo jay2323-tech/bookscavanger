@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { getOAuthIntent } from "@/app/library/resolveAuthDestination";
 
 /**
  * Supabase sometimes redirects OAuth to Site URL (/) with tokens in the hash.
@@ -23,10 +24,11 @@ export default function AuthHashCatcher() {
 
     if (onCallback) return;
 
-    const isAdminHint = sessionStorage.getItem("oauth_intent") === "admin";
-    const target = isAdminHint
-      ? `/admin/oauth-callback${hash}`
-      : `/library/oauth-callback${hash}`;
+    const intent = getOAuthIntent();
+    const target =
+      intent === "admin"
+        ? `/admin/oauth-callback${hash}`
+        : `/library/oauth-callback${hash}`;
 
     router.replace(target);
   }, [pathname, router]);
