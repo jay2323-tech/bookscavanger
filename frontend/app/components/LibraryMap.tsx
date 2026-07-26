@@ -14,6 +14,8 @@ interface Props {
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   compact?: boolean;
+  requireLoginForDirections?: boolean;
+  onDirectionsGate?: (mapsUrl: string) => void;
 }
 
 function DirectionsList({
@@ -21,11 +23,15 @@ function DirectionsList({
   selectedId,
   onSelect,
   compact,
+  requireLoginForDirections,
+  onDirectionsGate,
 }: {
   libraries: Library[];
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   compact?: boolean;
+  requireLoginForDirections?: boolean;
+  onDirectionsGate?: (mapsUrl: string) => void;
 }) {
   return (
     <div
@@ -38,7 +44,9 @@ function DirectionsList({
         Libraries on map
       </h3>
       <ul className="space-y-1 max-h-48 overflow-y-auto">
-        {libraries.map((lib) => (
+        {libraries.map((lib) => {
+          const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lib.latitude},${lib.longitude}`;
+          return (
           <li key={lib.id}>
             <button
               type="button"
@@ -51,17 +59,32 @@ function DirectionsList({
             >
               <span className="truncate">{lib.name}</span>
               <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${lib.latitude},${lib.longitude}`}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={
+                  requireLoginForDirections
+                    ? "/library/login?next=/search"
+                    : mapsUrl
+                }
+                target={requireLoginForDirections ? undefined : "_blank"}
+                rel={
+                  requireLoginForDirections
+                    ? undefined
+                    : "noopener noreferrer"
+                }
                 className="text-xs text-bs-teal hover:underline shrink-0"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (requireLoginForDirections) {
+                    e.preventDefault();
+                    onDirectionsGate?.(mapsUrl);
+                  }
+                }}
               >
-                Go
+                {requireLoginForDirections ? "Sign in" : "Go"}
               </a>
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
       {!process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY && (
         <p className="text-xs text-bs-muted mt-3">
@@ -77,6 +100,8 @@ export default function LibraryMap({
   selectedId,
   onSelect,
   compact,
+  requireLoginForDirections,
+  onDirectionsGate,
 }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
 
@@ -89,6 +114,8 @@ export default function LibraryMap({
         selectedId={selectedId}
         onSelect={onSelect}
         compact={compact}
+        requireLoginForDirections={requireLoginForDirections}
+        onDirectionsGate={onDirectionsGate}
       />
     );
   }
@@ -149,6 +176,8 @@ export default function LibraryMap({
         selectedId={selectedId}
         onSelect={onSelect}
         compact={compact}
+        requireLoginForDirections={requireLoginForDirections}
+        onDirectionsGate={onDirectionsGate}
       />
     </div>
   );

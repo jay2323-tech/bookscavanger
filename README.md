@@ -48,6 +48,7 @@ See **[DEPLOY.md](./DEPLOY.md)** for the full BS-015 checklist.
 ### Env quick reference
 
 **Render:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`  
+Optional hold emails: `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`  
 **Vercel:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_BACKEND_URL`
 
 ## Tickets

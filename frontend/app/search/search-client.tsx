@@ -15,6 +15,13 @@ import SearchFilters, {
 import TrendingNearYou from "../components/TrendingNearYou";
 import PageShell from "../components/PageShell";
 import { addToRun } from "@/app/lib/bookRun";
+import {
+  clearPendingDirections,
+  guestNeedsLoginForDirections,
+  loginHrefForDirections,
+  peekPendingDirections,
+  recordGuestSearch,
+} from "@/app/lib/guestSearchGate";
 import { supabase } from "@/app/lib/supabaseClient";
 import Link from "next/link";
 
@@ -47,6 +54,11 @@ export default function SearchClient({
     null
   );
   const [showMapMobile, setShowMapMobile] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [gateDirections, setGateDirections] = useState(false);
+  const [pendingDirections, setPendingDirections] = useState<string | null>(
+    null
+  );
   const [filters, setFilters] = useState<SearchFiltersState>({
     radius: "",
     availableOnly: false,
@@ -54,6 +66,30 @@ export default function SearchClient({
     sort: "best",
   });
   const filtersBoot = useRef(true);
+
+  useEffect(() => {
+    let alive = true;
+    const syncAuth = (hasUser: boolean) => {
+      setLoggedIn(hasUser);
+      setGateDirections(guestNeedsLoginForDirections(hasUser));
+      // Popup-safe: show Continue banner instead of window.open
+      setPendingDirections(hasUser ? peekPendingDirections() : null);
+    };
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!alive) return;
+      syncAuth(!!data.session?.user);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_e, session) => {
+      syncAuth(!!session?.user);
+    });
+    return () => {
+      alive = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const mapLibraries = useMemo(() => {
     const seen = new Set<string>();
@@ -178,6 +214,21 @@ export default function SearchClient({
     if (meta?.fuzzy && meta?.suggestion) {
       setFuzzyNote(`Showing close matches for “${meta.suggestion}”`);
     }
+
+    // Guests: after 1 search, directions require login
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user) {
+      recordGuestSearch();
+      setGateDirections(true);
+    } else {
+      setGateDirections(false);
+    }
+  };
+
+  const handleDirectionsGate = (mapsUrl: string) => {
+    window.location.href = loginHrefForDirections(mapsUrl);
   };
 
   const fetchBooks = async (overrideQuery?: string) => {
@@ -319,6 +370,8 @@ export default function SearchClient({
         selectedId={selectedLibraryId}
         onSelect={selectLibrary}
         compact
+        requireLoginForDirections={gateDirections}
+        onDirectionsGate={handleDirectionsGate}
       />
     ) : null;
 
@@ -341,6 +394,53 @@ export default function SearchClient({
         <p className="text-bs-muted mb-5 text-sm sm:text-base max-w-xl">
           Search title, author, or ISBN — then get directions to the nearest copy.
         </p>
+
+        {pendingDirections && loggedIn && (
+          <div className="mb-4 rounded-xl border border-bs-gold/40 bg-bs-gold/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-bs-ink">
+              You’re signed in — open directions to the library you picked.
+            </p>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <a
+                href={pendingDirections}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  clearPendingDirections();
+                  setPendingDirections(null);
+                }}
+                className="inline-flex items-center justify-center rounded-lg bg-bs-gold px-4 py-2 text-sm font-semibold text-bs-gold-ink hover:brightness-95"
+              >
+                Continue to directions
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  clearPendingDirections();
+                  setPendingDirections(null);
+                }}
+                className="inline-flex items-center justify-center rounded-lg border border-bs-line px-3 py-2 text-sm text-bs-muted hover:text-bs-ink"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {gateDirections && !loggedIn && results.length > 0 && (
+          <div className="mb-4 rounded-xl border border-bs-teal/25 bg-bs-teal-soft/50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-bs-ink">
+              Sign in free for directions — also unlocks holds and nearby
+              alerts.
+            </p>
+            <Link
+              href={loginHrefForDirections()}
+              className="inline-flex shrink-0 items-center justify-center rounded-lg bg-bs-gold px-4 py-2 text-sm font-semibold text-bs-gold-ink hover:brightness-95"
+            >
+              Sign in for directions
+            </Link>
+          </div>
+        )}
 
         <div className="sticky top-16 z-30 -mx-1 px-1 py-3 bg-bs-paper/90 backdrop-blur-sm border-b border-bs-line/60 mb-4">
           <SearchBar
@@ -407,6 +507,8 @@ export default function SearchClient({
                     selected={selectedLibraryId === id}
                     onSelect={selectLibrary}
                     onEngage={() => trackClick(edition)}
+                    requireLoginForDirections={gateDirections}
+                    onDirectionsGate={handleDirectionsGate}
                     onAddToRun={(stop) => {
                       addToRun(stop);
                       setRunToast(`Added “${stop.title}” to book run`);

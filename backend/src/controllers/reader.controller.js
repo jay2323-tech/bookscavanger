@@ -1,5 +1,106 @@
 import { supabaseAdmin } from "../config/supabase.js";
+import { appUrl, sendEmail } from "../services/email.js";
 import { calculateDistance } from "../utils/distance.js";
+
+async function resolveLibraryEmail(libraryId, libraryName) {
+  if (libraryId) {
+    const { data } = await supabaseAdmin
+      .from("libraries")
+      .select("email, name")
+      .eq("id", libraryId)
+      .maybeSingle();
+    if (data?.email) return data;
+  }
+  if (libraryName) {
+    const { data } = await supabaseAdmin
+      .from("libraries")
+      .select("email, name")
+      .eq("name", libraryName)
+      .maybeSingle();
+    if (data?.email) return data;
+  }
+  return null;
+}
+
+async function notifyLibraryNewHold(hold) {
+  try {
+    const lib = await resolveLibraryEmail(hold.library_id, hold.library_name);
+    if (!lib?.email) return;
+
+    const inbox = `${appUrl()}/library/dashboard/holds`;
+    const title = hold.title || "a book";
+    await sendEmail({
+      to: lib.email,
+      subject: `New hold: ${title}`,
+      text: [
+        `A reader requested a hold for “${title}”.`,
+        hold.author ? `Author: ${hold.author}` : null,
+        hold.note ? `Note: ${hold.note}` : null,
+        `Review holds: ${inbox}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      html: `
+        <p>A reader requested a hold for <strong>${escapeHtml(title)}</strong>.</p>
+        ${hold.author ? `<p>Author: ${escapeHtml(hold.author)}</p>` : ""}
+        ${hold.note ? `<p>Note: ${escapeHtml(hold.note)}</p>` : ""}
+        <p><a href="${inbox}">Open holds inbox</a></p>
+      `,
+    });
+  } catch (err) {
+    console.error("notifyLibraryNewHold:", err.message);
+  }
+}
+
+async function notifyReaderHoldStatus(hold, libraryLabel) {
+  try {
+    if (!["approved", "rejected", "fulfilled"].includes(hold.status)) return;
+
+    const { data: authData, error } = await supabaseAdmin.auth.admin.getUserById(
+      hold.user_id
+    );
+    if (error || !authData?.user?.email) return;
+
+    const title = hold.title || "your book";
+    const shelf = `${appUrl()}/library/dashboard/customer`;
+    const lib = libraryLabel || hold.library_name || "the library";
+
+    const copy = {
+      approved: {
+        subject: `Hold approved: ${title}`,
+        text: `Your hold for “${title}” was approved — visit ${lib}.`,
+        html: `<p>Your hold for <strong>${escapeHtml(title)}</strong> was approved — visit ${escapeHtml(lib)}.</p>`,
+      },
+      rejected: {
+        subject: `Hold declined: ${title}`,
+        text: `Your hold for “${title}” was declined.`,
+        html: `<p>Your hold for <strong>${escapeHtml(title)}</strong> was declined.</p>`,
+      },
+      fulfilled: {
+        subject: `Hold ready: ${title}`,
+        text: `Your hold for “${title}” is ready at ${lib}.`,
+        html: `<p>Your hold for <strong>${escapeHtml(title)}</strong> is ready at ${escapeHtml(lib)}.</p>`,
+      },
+    }[hold.status];
+
+    await sendEmail({
+      to: authData.user.email,
+      subject: copy.subject,
+      text: `${copy.text}\n\nMy shelf: ${shelf}`,
+      html: `${copy.html}<p><a href="${shelf}">Open my shelf</a></p>`,
+    });
+  } catch (err) {
+    console.error("notifyReaderHoldStatus:", err.message);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 /**
  * POST /api/reader/holds
@@ -35,6 +136,9 @@ export async function createHold(req, res) {
           : error.message,
       });
     }
+
+    // Fire-and-forget — never block hold success on email
+    void notifyLibraryNewHold(data);
 
     res.status(201).json({ message: "Hold requested", hold: data });
   } catch (err) {
@@ -139,6 +243,10 @@ export async function updateHoldStatus(req, res) {
       return res.status(403).json({ error: "Not your library's hold" });
     }
 
+    if (existing.status === status) {
+      return res.json({ hold: existing });
+    }
+
     const { data, error } = await supabaseAdmin
       .from("hold_requests")
       .update({ status, library_id: existing.library_id ?? req.library.id })
@@ -147,6 +255,9 @@ export async function updateHoldStatus(req, res) {
       .single();
 
     if (error) throw error;
+
+    void notifyReaderHoldStatus(data, req.library?.name);
+
     res.json({ hold: data });
   } catch (err) {
     console.error("updateHoldStatus:", err);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { supabase } from "@/app/lib/supabaseClient";
 import BookCover from "./BookCover";
@@ -48,6 +48,9 @@ interface Props {
   selected?: boolean;
   onSelect?: (libraryKey: string) => void;
   onEngage?: () => void;
+  /** When true, Directions sends guests to login instead of Maps */
+  requireLoginForDirections?: boolean;
+  onDirectionsGate?: (mapsUrl: string) => void;
   onAddToRun?: (stop: {
     title: string;
     library_name: string;
@@ -63,11 +66,17 @@ function libraryKey(c: EditionCopy) {
 
 const backend = process.env.NEXT_PUBLIC_BACKEND_URL;
 
+function mapsDirUrl(lat: number, lng: number) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}
+
 export default function EditionResultCard({
   edition,
   selected,
   onSelect,
   onEngage,
+  requireLoginForDirections = false,
+  onDirectionsGate,
   onAddToRun,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
@@ -146,8 +155,17 @@ export default function EditionResultCard({
 
   const directionsHref =
     nearest?.latitude != null && nearest?.longitude != null
-      ? `https://www.google.com/maps/dir/?api=1&destination=${nearest.latitude},${nearest.longitude}`
+      ? mapsDirUrl(nearest.latitude, nearest.longitude)
       : null;
+
+  const openDirections = (e: MouseEvent, mapsUrl: string | null) => {
+    if (!mapsUrl) return;
+    onEngage?.();
+    if (requireLoginForDirections) {
+      e.preventDefault();
+      onDirectionsGate?.(mapsUrl);
+    }
+  };
 
   return (
     <article
@@ -211,13 +229,19 @@ export default function EditionResultCard({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {directionsHref ? (
           <a
-            href={directionsHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => onEngage?.()}
+            href={
+              requireLoginForDirections
+                ? "/library/login?next=/search"
+                : directionsHref
+            }
+            target={requireLoginForDirections ? undefined : "_blank"}
+            rel={
+              requireLoginForDirections ? undefined : "noopener noreferrer"
+            }
+            onClick={(e) => openDirections(e, directionsHref)}
             className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold bg-bs-gold text-bs-gold-ink hover:brightness-95"
           >
-            Directions
+            {requireLoginForDirections ? "Sign in for directions" : "Directions"}
           </a>
         ) : (
           <Button type="button" onClick={() => requestHold()}>
@@ -325,12 +349,25 @@ export default function EditionResultCard({
               </button>
               {c.latitude != null && c.longitude != null && (
                 <a
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${c.latitude},${c.longitude}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={
+                    requireLoginForDirections
+                      ? "/library/login?next=/search"
+                      : mapsDirUrl(c.latitude, c.longitude)
+                  }
+                  target={requireLoginForDirections ? undefined : "_blank"}
+                  rel={
+                    requireLoginForDirections
+                      ? undefined
+                      : "noopener noreferrer"
+                  }
+                  onClick={(e) =>
+                    openDirections(e, mapsDirUrl(c.latitude!, c.longitude!))
+                  }
                   className="text-bs-teal hover:underline font-medium"
                 >
-                  Directions
+                  {requireLoginForDirections
+                    ? "Sign in for directions"
+                    : "Directions"}
                 </a>
               )}
             </li>

@@ -97,7 +97,8 @@ export function applySafeNext(
   if (!safe) return destination;
   if (
     destination === "/search" ||
-    destination === "/library/dashboard/customer"
+    destination === "/library/dashboard/customer" ||
+    safe.startsWith("/search")
   ) {
     return safe;
   }
