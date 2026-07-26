@@ -1,4 +1,8 @@
 import { supabaseAdmin } from "../config/supabase.js";
+import {
+  normalizePhone,
+  normalizeWebsite,
+} from "../utils/libraryVerification.js";
 
 /**
  * Application status for the logged-in user (service role — bypasses RLS).
@@ -19,7 +23,6 @@ async function ensureProfile(userId, user, { role = "customer", approved = false
   if (profileErr) throw profileErr;
 
   if (!profile) {
-    // Live DB uses `name` (not full_name) + optional `approved` flag
     const { data: created, error: upsertErr } = await supabaseAdmin
       .from("profiles")
       .upsert(
@@ -44,21 +47,32 @@ async function ensureProfile(userId, user, { role = "customer", approved = false
   return profile;
 }
 
+const LIBRARY_STATUS_FIELDS =
+  "id, name, email, website, phone, latitude, longitude, opens_at, closes_at, approved, rejected, reject_reason, created_at";
+
 export async function getLibraryOnboardingStatus(req, res) {
   try {
     const userId = req.user.id;
 
-    const { data: library, error } = await supabaseAdmin
+    let { data: library, error } = await supabaseAdmin
       .from("libraries")
-      .select(
-        "id, name, email, latitude, longitude, opens_at, closes_at, approved, rejected, created_at"
-      )
+      .select(LIBRARY_STATUS_FIELDS)
       .eq("supabase_user_id", userId)
       .maybeSingle();
 
+    // Older DBs before migration 005
+    if (error && String(error.message).includes("website")) {
+      ({ data: library, error } = await supabaseAdmin
+        .from("libraries")
+        .select(
+          "id, name, email, latitude, longitude, opens_at, closes_at, approved, rejected, created_at"
+        )
+        .eq("supabase_user_id", userId)
+        .maybeSingle());
+    }
+
     if (error) throw error;
 
-    // If library is already approved, profile must be librarian (self-heal stuck pending)
     const shouldBeLibrarian = !!(library?.approved && !library?.rejected);
 
     let profile = await ensureProfile(req.user.id, req.user, {
@@ -104,20 +118,27 @@ export async function getLibraryOnboardingStatus(req, res) {
 
 /**
  * Create or update a pending library application.
- * - New user → insert
- * - Existing pending → update details
- * - Rejected → must call /reapply first
- * - Approved → blocked
  */
 export async function createLibraryOnboarding(req, res) {
   try {
     const userId = req.user.id;
-    const { name, email, latitude, longitude, opens_at, closes_at } = req.body;
+    const { name, email, latitude, longitude, opens_at, closes_at, website, phone } =
+      req.body || {};
 
-    if (!name) {
+    if (!name?.trim()) {
       return res.status(400).json({
         error: "Library name is required",
       });
+    }
+
+    const site = normalizeWebsite(website);
+    if (!site.ok) {
+      return res.status(400).json({ error: site.error });
+    }
+
+    const tel = normalizePhone(phone);
+    if (!tel.ok) {
+      return res.status(400).json({ error: tel.error });
     }
 
     const { data: existingLibrary } = await supabaseAdmin
@@ -139,12 +160,15 @@ export async function createLibraryOnboarding(req, res) {
     }
 
     const payload = {
-      name,
-      email: email || null,
+      name: String(name).trim(),
+      email: email ? String(email).trim() : null,
+      website: site.url,
+      phone: tel.phone,
       latitude: latitude ? Number(latitude) : null,
       longitude: longitude ? Number(longitude) : null,
       approved: false,
       rejected: false,
+      reject_reason: null,
       opens_at: opens_at || "09:00",
       closes_at: closes_at || "20:00",
     };
@@ -154,6 +178,13 @@ export async function createLibraryOnboarding(req, res) {
         .from("libraries")
         .update(payload)
         .eq("id", existingLibrary.id);
+
+      if (updateError && String(updateError.message).includes("website")) {
+        return res.status(400).json({
+          error:
+            "Run database/migrations/005_library_verification.sql in Supabase first",
+        });
+      }
 
       if (updateError && String(updateError.message).includes("opens_at")) {
         delete payload.opens_at;
@@ -182,6 +213,13 @@ export async function createLibraryOnboarding(req, res) {
     let { error: insertError } = await supabaseAdmin
       .from("libraries")
       .insert(insertPayload);
+
+    if (insertError && String(insertError.message).includes("website")) {
+      return res.status(400).json({
+        error:
+          "Run database/migrations/005_library_verification.sql in Supabase first",
+      });
+    }
 
     if (insertError && String(insertError.message).includes("opens_at")) {
       delete insertPayload.opens_at;
@@ -240,7 +278,7 @@ export async function reapplyLibraryOnboarding(req, res) {
 
     const { error: updateError } = await supabaseAdmin
       .from("libraries")
-      .update({ rejected: false, approved: false })
+      .update({ rejected: false, approved: false, reject_reason: null })
       .eq("id", library.id);
 
     if (updateError) throw updateError;

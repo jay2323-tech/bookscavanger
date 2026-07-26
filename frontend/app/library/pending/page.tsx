@@ -1,5 +1,7 @@
 "use client";
 
+import AuthShell from "@/app/components/AuthShell";
+import Button from "@/app/components/ui/Button";
 import { supabase } from "@/app/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -39,9 +41,7 @@ export default function PendingApprovalPage() {
           data: { session },
           error: sessionError,
         } = await supabase.auth.getSession();
-
         if (sessionError) throw sessionError;
-
         if (!session?.user) {
           if (isMounted) router.replace("/library/login");
           return;
@@ -51,10 +51,8 @@ export default function PendingApprovalPage() {
         if (!isMounted) return;
 
         const library = status.library;
-
         if (!library) {
           nullLibraryHits += 1;
-          // Brief grace period after submit before bouncing to onboarding
           if (nullLibraryHits >= 3) {
             clearInterval(interval);
             router.replace("/library/onboarding");
@@ -72,15 +70,13 @@ export default function PendingApprovalPage() {
         }
 
         if (library.approved) {
-          // Status API self-heals role → librarian; don't stay stuck on pending
           clearInterval(interval);
-          window.location.assign("/library/dashboard/librarian");
+          window.location.assign("/library/dashboard/overview");
           return;
         }
 
         setError(null);
       } catch (err: unknown) {
-        console.error("Error checking approval status:", err);
         if (isMounted) {
           setError(
             err instanceof Error
@@ -93,74 +89,64 @@ export default function PendingApprovalPage() {
 
     checkApprovalStatus();
     interval = setInterval(checkApprovalStatus, 3000);
-
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
   }, [router]);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    router.replace("/");
-  };
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-bs-paper text-bs-ink px-4 bs-field">
+    <AuthShell
+      eyebrow="Librarian"
+      title="Approval pending"
+      subtitle={
+        libraryName
+          ? `${libraryName} is under review. You’ll get access once an admin approves it.`
+          : "Your library application is under review. You’ll get access once an admin approves it."
+      }
+    >
+      <div className="flex items-center gap-3 rounded-lg border border-bs-line bg-bs-paper/60 px-4 py-3 mb-6">
+        <span className="h-2 w-2 rounded-full bg-bs-gold animate-pulse" />
+        <p className="text-sm text-bs-muted">Waiting for admin review…</p>
+      </div>
+
       {error && (
-        <div className="mb-6 p-4 border border-bs-danger/30 bg-bs-danger/5 rounded-lg text-bs-danger text-center max-w-md">
-          <p className="font-semibold">Unable to check status</p>
-          <p className="text-sm opacity-90">{error}</p>
+        <div className="mb-4 rounded-lg border border-bs-danger/30 bg-bs-danger/5 px-4 py-3 text-sm text-bs-danger">
+          {error}
         </div>
       )}
-      <p className="text-xs uppercase tracking-[0.14em] text-bs-muted mb-2">
-        Librarian
-      </p>
-      <h1
-        className="text-3xl font-semibold text-bs-ink mb-4 text-center"
-        style={{ fontFamily: "var(--font-display), Georgia, serif" }}
-      >
-        Approval pending
-      </h1>
-      <p className="text-bs-muted text-center max-w-md">
-        {libraryName ? (
-          <>
-            <span className="text-bs-ink font-medium">{libraryName}</span> is
-            under review.
-            <br />
-          </>
-        ) : (
-          <>Your librarian account is under review.
-            <br />
-          </>
-        )}
-        You&apos;ll get access once an admin approves it.
-      </p>
-      <div className="mt-8 flex flex-wrap gap-3 justify-center">
+
+      <div className="flex flex-col sm:flex-row gap-2">
         {error && (
-          <button
+          <Button
             type="button"
+            variant="primary"
+            className="flex-1"
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-bs-gold text-bs-gold-ink font-semibold rounded-lg"
           >
             Retry
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          className="flex-1"
           onClick={() => router.push("/library/onboarding?edit=1")}
-          className="px-4 py-2 border border-bs-line rounded-lg text-sm text-bs-muted hover:text-bs-teal"
         >
           Edit application
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          onClick={signOut}
-          className="px-4 py-2 border border-bs-line rounded-lg text-sm text-bs-muted hover:text-bs-danger"
+          variant="ghost"
+          className="flex-1"
+          onClick={async () => {
+            await supabase.auth.signOut();
+            router.replace("/");
+          }}
         >
           Sign out
-        </button>
+        </Button>
       </div>
-    </div>
+    </AuthShell>
   );
 }

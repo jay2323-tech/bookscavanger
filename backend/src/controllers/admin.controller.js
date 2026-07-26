@@ -58,8 +58,12 @@ export const getPendingLibrarians = async (req, res) => {
         id,
         name,
         email,
+        website,
+        phone,
         latitude,
         longitude,
+        opens_at,
+        closes_at,
         supabase_user_id,
         created_at,
         approved,
@@ -140,12 +144,19 @@ export const approveLibrarian = async (req, res) => {
         .update({
           approved: true,
           rejected: false,
+          reject_reason: null,
         })
         .eq("id", libraryId);
 
       if (updateError) {
         throw updateError;
       }
+    } else {
+      // Ensure reject_reason cleared even if RPC predates migration 005
+      await supabaseAdmin
+        .from("libraries")
+        .update({ reject_reason: null })
+        .eq("id", libraryId);
     }
 
     // Always upsert profile — RPC UPDATE is a no-op when the row is missing
@@ -189,11 +200,18 @@ export const approveLibrarian = async (req, res) => {
  */
 export const rejectLibrarian = async (req, res) => {
   try {
-    const { libraryId } = req.body;
+    const { libraryId, reason } = req.body || {};
 
     if (!libraryId) {
       return res.status(400).json({
         error: "libraryId required",
+      });
+    }
+
+    const rejectReason = String(reason || "").trim().slice(0, 500);
+    if (!rejectReason) {
+      return res.status(400).json({
+        error: "A reject reason is required",
       });
     }
 
@@ -226,6 +244,7 @@ export const rejectLibrarian = async (req, res) => {
       .update({
         approved: false,
         rejected: true,
+        reject_reason: rejectReason,
       })
       .eq("id", libraryId);
 
@@ -351,12 +370,15 @@ export const getLibraries = async (req, res) => {
         id,
         name,
         email,
+        website,
+        phone,
         latitude,
         longitude,
         opens_at,
         closes_at,
         approved,
         rejected,
+        reject_reason,
         created_at,
         books(count)
       `

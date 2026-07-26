@@ -1,5 +1,6 @@
 "use client";
 
+import { isFreeEmail } from "@/app/library/freeEmail";
 import { supabase } from "@/app/lib/supabaseClient";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,6 +16,13 @@ type PendingLibrarian = {
   id: string;
   email: string | null;
   name: string;
+  website?: string | null;
+  phone?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  opens_at?: string | null;
+  closes_at?: string | null;
+  created_at?: string;
   supabase_user_id: string | null;
 };
 
@@ -54,6 +62,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -132,14 +143,21 @@ export default function AdminDashboard() {
 
   const decideLibrarian = async (
     libraryId: string,
-    action: "approve" | "reject"
+    action: "approve" | "reject",
+    reason?: string
   ) => {
     const {
       data: { session },
     } = await supabase.auth.getSession();
     if (!session) return;
 
+    if (action === "reject" && !String(reason || "").trim()) {
+      setActionError("Enter a reject reason");
+      return;
+    }
+
     setActingId(libraryId);
+    setActionError(null);
     try {
       const endpoint =
         action === "approve"
@@ -154,16 +172,26 @@ export default function AdminDashboard() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ libraryId }),
+          body: JSON.stringify(
+            action === "reject"
+              ? { libraryId, reason: String(reason).trim() }
+              : { libraryId }
+          ),
         }
       );
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(action === "approve" ? "Approval failed" : "Rejection failed");
+        setActionError(
+          data.error ||
+            (action === "approve" ? "Approval failed" : "Rejection failed")
+        );
         return;
       }
 
       setPending((prev) => prev.filter((p) => p.id !== libraryId));
+      setRejectingId(null);
+      setRejectReason("");
     } finally {
       setActingId(null);
     }
@@ -191,16 +219,18 @@ export default function AdminDashboard() {
 
   return (
     <div className="px-5 sm:px-8 md:px-10 py-8 md:py-10 max-w-6xl mx-auto bs-fade-in">
-      {error && (
+      {(error || actionError) && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-bs-danger/30 bg-bs-danger/5 px-4 py-3 text-sm text-bs-danger">
-          <span>{error}</span>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="rounded-lg border border-bs-danger/40 px-3 py-1.5 text-xs font-medium hover:bg-bs-danger/10"
-          >
-            Retry
-          </button>
+          <span>{error || actionError}</span>
+          {error && (
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-lg border border-bs-danger/40 px-3 py-1.5 text-xs font-medium hover:bg-bs-danger/10"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
 
@@ -263,38 +293,171 @@ export default function AdminDashboard() {
               review.
             </p>
           ) : (
-            <ul className="mt-5 space-y-3 bs-stagger">
-              {pending.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-bs-line bg-bs-surface px-4 py-4"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-bs-ink truncate">{p.name}</p>
-                    <p className="text-sm text-bs-muted truncate">
-                      {p.email || "No email on file"}
-                    </p>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      type="button"
-                      disabled={actingId === p.id}
-                      onClick={() => decideLibrarian(p.id, "approve")}
-                      className="rounded-lg bg-bs-teal px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      disabled={actingId === p.id}
-                      onClick={() => decideLibrarian(p.id, "reject")}
-                      className="rounded-lg border border-bs-line px-4 py-2 text-sm font-medium text-bs-muted hover:border-bs-danger hover:text-bs-danger disabled:opacity-50"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </li>
-              ))}
+            <ul className="mt-5 space-y-4 bs-stagger">
+              {pending.map((p) => {
+                const mapsHref =
+                  p.latitude != null && p.longitude != null
+                    ? `https://www.google.com/maps?q=${p.latitude},${p.longitude}`
+                    : null;
+                return (
+                  <li
+                    key={p.id}
+                    className="rounded-xl border border-bs-line bg-bs-surface px-4 py-4"
+                  >
+                    <div className="flex flex-col gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-bs-ink text-lg">
+                          {p.name}
+                        </p>
+                        <p className="text-sm text-bs-muted mt-0.5 flex flex-wrap items-center gap-2">
+                          <span>{p.email || "No email on file"}</span>
+                          {isFreeEmail(p.email) && (
+                            <span className="text-[10px] uppercase tracking-wide font-semibold text-bs-gold bg-bs-gold/15 px-1.5 py-0.5 rounded">
+                              Free email
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                        <div>
+                          <dt className="text-xs uppercase tracking-[0.1em] text-bs-muted">
+                            Phone
+                          </dt>
+                          <dd className="text-bs-ink">{p.phone || "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-[0.1em] text-bs-muted">
+                            Website
+                          </dt>
+                          <dd className="text-bs-ink truncate">
+                            {p.website ? (
+                              <a
+                                href={p.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-bs-teal hover:underline"
+                              >
+                                {p.website.replace(/^https?:\/\//, "")}
+                              </a>
+                            ) : (
+                              "—"
+                            )}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-[0.1em] text-bs-muted">
+                            Hours
+                          </dt>
+                          <dd className="text-bs-ink tabular-nums">
+                            {p.opens_at || "—"}–{p.closes_at || "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs uppercase tracking-[0.1em] text-bs-muted">
+                            Applied
+                          </dt>
+                          <dd className="text-bs-ink">
+                            {p.created_at
+                              ? new Date(p.created_at).toLocaleString()
+                              : "—"}
+                          </dd>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <dt className="text-xs uppercase tracking-[0.1em] text-bs-muted">
+                            Location
+                          </dt>
+                          <dd className="text-bs-ink">
+                            {p.latitude != null && p.longitude != null ? (
+                              <span className="inline-flex flex-wrap items-center gap-2">
+                                <span className="tabular-nums">
+                                  {Number(p.latitude).toFixed(5)},{" "}
+                                  {Number(p.longitude).toFixed(5)}
+                                </span>
+                                {mapsHref && (
+                                  <a
+                                    href={mapsHref}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-bs-teal hover:underline text-sm"
+                                  >
+                                    Open in Maps
+                                  </a>
+                                )}
+                              </span>
+                            ) : (
+                              "Not provided"
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      {rejectingId === p.id ? (
+                        <div className="border-t border-bs-line pt-3 space-y-2">
+                          <label className="block text-sm text-bs-ink">
+                            Reject reason
+                            <textarea
+                              value={rejectReason}
+                              onChange={(e) => setRejectReason(e.target.value)}
+                              rows={2}
+                              maxLength={500}
+                              placeholder="e.g. Couldn’t verify this as a public library"
+                              className="mt-1.5 w-full rounded-lg border border-bs-line bg-bs-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bs-teal/40"
+                            />
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={
+                                actingId === p.id || !rejectReason.trim()
+                              }
+                              onClick={() =>
+                                decideLibrarian(p.id, "reject", rejectReason)
+                              }
+                              className="rounded-lg bg-bs-danger px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                            >
+                              Confirm reject
+                            </button>
+                            <button
+                              type="button"
+                              disabled={actingId === p.id}
+                              onClick={() => {
+                                setRejectingId(null);
+                                setRejectReason("");
+                              }}
+                              className="rounded-lg border border-bs-line px-4 py-2 text-sm text-bs-muted"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            disabled={actingId === p.id}
+                            onClick={() => decideLibrarian(p.id, "approve")}
+                            className="rounded-lg bg-bs-teal px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            disabled={actingId === p.id}
+                            onClick={() => {
+                              setRejectingId(p.id);
+                              setRejectReason("");
+                            }}
+                            className="rounded-lg border border-bs-line px-4 py-2 text-sm font-medium text-bs-muted hover:border-bs-danger hover:text-bs-danger disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

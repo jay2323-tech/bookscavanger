@@ -3,12 +3,12 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-/** Legacy desk URL — redirect to overview */
-export default function LibrarianRedirect() {
+/** Legacy dashboard search — use /search with logged-in dropdown nav */
+export default function DashboardFindRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/library/dashboard/overview");
+    router.replace("/search");
   }, [router]);
 
   return null;

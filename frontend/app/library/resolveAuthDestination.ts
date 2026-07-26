@@ -34,7 +34,7 @@ export function resolveAuthDestination({
     if (!library) return "/library/onboarding";
     if (library.rejected) return "/library/rejected";
     if (!library.approved) return "/library/pending";
-    return "/library/dashboard/librarian";
+    return "/library/dashboard/overview";
   }
 
   if (role === "customer") {

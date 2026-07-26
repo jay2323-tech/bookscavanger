@@ -61,9 +61,12 @@ export async function myHolds(req, res) {
   }
 }
 
-/** GET /api/library/holds — librarian inbox */
+/** GET /api/library/holds — librarian inbox (?status=pending|approved|…) */
 export async function libraryHolds(req, res) {
   try {
+    const statusFilter = String(req.query.status || "").trim();
+    const allowed = ["pending", "approved", "rejected", "fulfilled", "cancelled"];
+
     const byId = await supabaseAdmin
       .from("hold_requests")
       .select("*")
@@ -95,6 +98,11 @@ export async function libraryHolds(req, res) {
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
+
+    if (statusFilter && allowed.includes(statusFilter)) {
+      rows = rows.filter((r) => r.status === statusFilter);
+    }
+
     res.json(rows);
   } catch (err) {
     console.error("libraryHolds:", err);
@@ -357,5 +365,135 @@ export async function checkAlerts(req, res) {
   } catch (err) {
     console.error("checkAlerts:", err);
     res.status(500).json({ error: "Alert check failed" });
+  }
+}
+
+/** GET /api/reader/profile */
+export async function getReaderProfile(req, res) {
+  try {
+    const { data: profile, error } = await supabaseAdmin
+      .from("profiles")
+      .select("id, role, name, email, approved, created_at")
+      .eq("id", req.user.id)
+      .maybeSingle();
+
+    if (error) {
+      // older schemas use full_name
+      const fallback = await supabaseAdmin
+        .from("profiles")
+        .select("id, role, full_name, created_at")
+        .eq("id", req.user.id)
+        .maybeSingle();
+      if (fallback.error) throw error;
+      return res.json({
+        id: req.user.id,
+        email: req.user.email,
+        role: fallback.data?.role || "customer",
+        name:
+          fallback.data?.full_name ||
+          req.user.user_metadata?.name ||
+          null,
+        created_at: fallback.data?.created_at || null,
+      });
+    }
+
+    res.json({
+      id: req.user.id,
+      email: profile?.email || req.user.email,
+      role: profile?.role || "customer",
+      name:
+        profile?.name ||
+        req.user.user_metadata?.name ||
+        null,
+      approved: profile?.approved ?? null,
+      created_at: profile?.created_at || null,
+    });
+  } catch (err) {
+    console.error("getReaderProfile:", err);
+    res.status(500).json({ error: "Failed to load profile" });
+  }
+}
+
+/** PATCH /api/reader/profile — update display name */
+export async function updateReaderProfile(req, res) {
+  try {
+    const name = String(req.body?.name || "").trim();
+    if (!name) {
+      return res.status(400).json({ error: "Name required" });
+    }
+
+    let { data, error } = await supabaseAdmin
+      .from("profiles")
+      .update({ name })
+      .eq("id", req.user.id)
+      .select("id, role, name, email")
+      .single();
+
+    if (error && String(error.message).toLowerCase().includes("name")) {
+      ({ data, error } = await supabaseAdmin
+        .from("profiles")
+        .update({ full_name: name })
+        .eq("id", req.user.id)
+        .select("id, role, full_name")
+        .single());
+      if (!error && data) {
+        data = { ...data, name: data.full_name };
+      }
+    }
+
+    if (error) throw error;
+
+    await supabaseAdmin.auth.admin.updateUserById(req.user.id, {
+      user_metadata: { ...(req.user.user_metadata || {}), name },
+    });
+
+    res.json({
+      message: "Profile updated",
+      profile: {
+        id: data.id,
+        role: data.role,
+        name: data.name || name,
+        email: data.email || req.user.email,
+      },
+    });
+  } catch (err) {
+    console.error("updateReaderProfile:", err);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+}
+
+/** DELETE /api/reader/account — permanently remove reader account */
+export async function deleteReaderAccount(req, res) {
+  try {
+    const userId = req.user.id;
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profile?.role === "librarian" || profile?.role === "admin") {
+      return res.status(403).json({
+        error: "Use library settings to delete a librarian account",
+      });
+    }
+
+    await Promise.all([
+      supabaseAdmin.from("hold_requests").delete().eq("user_id", userId),
+      supabaseAdmin.from("search_alerts").delete().eq("user_id", userId),
+      supabaseAdmin.from("book_finds").delete().eq("user_id", userId),
+    ]);
+
+    await supabaseAdmin.from("profiles").delete().eq("id", userId);
+
+    const { error: authErr } =
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+    if (authErr) throw authErr;
+
+    res.json({ message: "Account deleted" });
+  } catch (err) {
+    console.error("deleteReaderAccount:", err.message);
+    res.status(500).json({ error: "Failed to delete account" });
   }
 }

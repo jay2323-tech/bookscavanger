@@ -19,12 +19,15 @@ create table if not exists public.libraries (
   supabase_user_id uuid references auth.users on delete set null,
   name text not null,
   email text,
+  website text,
+  phone text,
   latitude double precision,
   longitude double precision,
   opens_at text default '09:00',
   closes_at text default '20:00',
   approved boolean not null default false,
   rejected boolean not null default false,
+  reject_reason text,
   created_at timestamptz not null default now()
 );
 

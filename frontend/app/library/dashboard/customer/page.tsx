@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import StatusDot from "@/app/components/ui/StatusDot";
 import { supabase } from "@/app/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -28,6 +29,13 @@ type Match = {
 
 const backend = process.env.NEXT_PUBLIC_BACKEND_URL;
 
+function holdTone(status: string): "ok" | "danger" | "teal" | "muted" {
+  if (status === "approved" || status === "fulfilled") return "ok";
+  if (status === "rejected") return "danger";
+  if (status === "pending") return "teal";
+  return "muted";
+}
+
 export default function CustomerDashboard() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -35,6 +43,7 @@ export default function CustomerDashboard() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const init = async () => {
@@ -54,7 +63,7 @@ export default function CustomerDashboard() {
         .maybeSingle();
 
       if (profile?.role === "librarian") {
-        router.replace("/library/dashboard/librarian");
+        router.replace("/library/dashboard/overview");
         return;
       }
       if (profile?.role === "admin") {
@@ -68,8 +77,7 @@ export default function CustomerDashboard() {
           session.user.email ||
           "Reader"
       );
-      const token = session.access_token;
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = { Authorization: `Bearer ${session.access_token}` };
 
       try {
         const [hRes, aRes, mRes] = await Promise.all([
@@ -84,7 +92,9 @@ export default function CustomerDashboard() {
           setMatches(data.matches || []);
         }
       } catch {
-        setError("Could not load reader data (run P2 migration if needed)");
+        setError("Could not load reader data");
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -103,34 +113,60 @@ export default function CustomerDashboard() {
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   };
 
+  if (loading) {
+    return (
+      <div className="max-w-3xl animate-pulse">
+        <div className="h-8 w-56 bg-bs-line/70 rounded mb-2" />
+        <div className="h-4 w-72 bg-bs-line/40 rounded mb-10" />
+        <div className="h-32 bg-bs-line/25 rounded-xl mb-6" />
+        <div className="h-40 bg-bs-line/20 rounded-xl" />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl bs-fade-in">
-      <h1
-        className="text-3xl font-semibold mb-2 text-bs-ink"
-        style={{ fontFamily: "var(--font-display), Georgia, serif" }}
-      >
-        Welcome{name ? `, ${name}` : ""}
-      </h1>
-      <p className="text-bs-muted mb-6">
-        Your holds, alerts, and next book run.
-      </p>
+      <header className="mb-8">
+        <p className="text-xs uppercase tracking-[0.14em] text-bs-muted mb-2">
+          Reader
+        </p>
+        <h1
+          className="text-3xl md:text-4xl text-bs-ink tracking-tight"
+          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+        >
+          {name ? `Hi, ${name.split(" ")[0]}` : "My shelf"}
+        </h1>
+        <p className="mt-2 text-bs-muted text-sm md:text-base">
+          Holds, alerts, and your next book run.
+        </p>
+      </header>
 
       <div className="flex flex-wrap gap-3 mb-10">
         <Link
           href="/search"
-          className="inline-flex bg-bs-gold text-bs-gold-ink px-5 py-2.5 rounded-lg font-semibold"
+          className="inline-flex bg-bs-gold text-bs-gold-ink px-5 py-2.5 rounded-lg font-semibold text-sm"
         >
           Find a book
         </Link>
         <Link
           href="/plan"
-          className="inline-flex border border-bs-line bg-bs-surface px-5 py-2.5 rounded-lg text-bs-teal"
+          className="inline-flex border border-bs-line bg-bs-surface px-5 py-2.5 rounded-lg text-bs-teal text-sm"
         >
           Book-run planner
         </Link>
+        <Link
+          href="/library/dashboard/account"
+          className="inline-flex border border-bs-line bg-bs-surface px-5 py-2.5 rounded-lg text-bs-muted text-sm"
+        >
+          Settings
+        </Link>
       </div>
 
-      {error && <p className="text-bs-danger text-sm mb-4">{error}</p>}
+      {error && (
+        <p className="text-bs-danger text-sm mb-4 rounded-lg border border-bs-danger/25 bg-bs-danger/5 px-3 py-2">
+          {error}
+        </p>
+      )}
 
       {matches.length > 0 && (
         <section className="mb-10">
@@ -144,11 +180,13 @@ export default function CustomerDashboard() {
             {matches.map((m) => (
               <li
                 key={m.alert_id}
-                className="bg-bs-teal-soft/60 border border-bs-teal/20 rounded-lg p-4"
+                className="bg-bs-teal-soft/60 border border-bs-teal/20 rounded-xl p-4"
               >
-                <p className="font-medium text-bs-ink">“{m.query}” is nearby</p>
+                <p className="font-medium text-bs-ink">
+                  “{m.query}” is nearby
+                </p>
                 {m.hits.map((h, i) => (
-                  <p key={i} className="text-sm text-bs-muted">
+                  <p key={i} className="text-sm text-bs-muted mt-1">
                     {h.title} @ {h.library_name}
                     {h.distance != null ? ` · ${h.distance.toFixed(1)} km` : ""}
                   </p>
@@ -174,17 +212,22 @@ export default function CustomerDashboard() {
             </Link>
           </p>
         ) : (
-          <ul className="divide-y divide-bs-line border border-bs-line rounded-lg bg-bs-surface">
+          <ul className="divide-y divide-bs-line border border-bs-line rounded-xl bg-bs-surface">
             {holds.map((h) => (
               <li
                 key={h.id}
-                className="flex justify-between px-4 py-3 text-sm gap-3"
+                className="flex justify-between items-center px-4 py-3.5 text-sm gap-3"
               >
-                <span className="text-bs-ink">
+                <span className="text-bs-ink min-w-0">
                   {h.title}
-                  {h.library_name ? ` · ${h.library_name}` : ""}
+                  {h.library_name ? (
+                    <span className="text-bs-muted">
+                      {" "}
+                      · {h.library_name}
+                    </span>
+                  ) : null}
                 </span>
-                <span className="text-bs-teal shrink-0">{h.status}</span>
+                <StatusDot tone={holdTone(h.status)} label={h.status} />
               </li>
             ))}
           </ul>
@@ -203,14 +246,15 @@ export default function CustomerDashboard() {
             Create alerts from search (“Alert me nearby”).
           </p>
         ) : (
-          <ul className="divide-y divide-bs-line border border-bs-line rounded-lg bg-bs-surface">
+          <ul className="divide-y divide-bs-line border border-bs-line rounded-xl bg-bs-surface">
             {alerts.map((a) => (
               <li
                 key={a.id}
-                className="flex justify-between px-4 py-3 text-sm gap-3"
+                className="flex justify-between px-4 py-3.5 text-sm gap-3"
               >
                 <span className="text-bs-ink">
-                  {a.query} · {a.radius_km} km
+                  {a.query}
+                  <span className="text-bs-muted"> · {a.radius_km} km</span>
                 </span>
                 <button
                   type="button"

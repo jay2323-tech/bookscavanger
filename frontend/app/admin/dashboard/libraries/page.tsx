@@ -8,6 +8,8 @@ type LibraryRow = {
   id: string | number;
   name: string;
   email: string | null;
+  website?: string | null;
+  phone?: string | null;
   latitude: number | null;
   longitude: number | null;
   opens_at: string | null;
@@ -97,7 +99,9 @@ export default function AdminLibrariesPage() {
       if (!q) return true;
       return (
         lib.name.toLowerCase().includes(q) ||
-        (lib.email || "").toLowerCase().includes(q)
+        (lib.email || "").toLowerCase().includes(q) ||
+        (lib.website || "").toLowerCase().includes(q) ||
+        (lib.phone || "").toLowerCase().includes(q)
       );
     });
   }, [libraries, filter, query]);
@@ -168,7 +172,7 @@ export default function AdminLibrariesPage() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name or email…"
+          placeholder="Search by name, email, phone, website…"
           className="sm:ml-auto w-full sm:w-64 rounded-lg border border-bs-line bg-bs-surface px-3 py-2 text-sm text-bs-ink placeholder:text-bs-muted/70 focus:outline-none focus:border-bs-teal"
         />
       </div>
@@ -178,6 +182,7 @@ export default function AdminLibrariesPage() {
           <thead>
             <tr className="border-b border-bs-line text-xs uppercase tracking-wider text-bs-muted bg-bs-paper/80">
               <th className="py-3 px-4 font-medium">Library</th>
+              <th className="py-3 px-3 font-medium">Contact</th>
               <th className="py-3 px-3 font-medium">Status</th>
               <th className="py-3 px-3 font-medium">Books</th>
               <th className="py-3 px-3 font-medium">Hours</th>
@@ -200,6 +205,21 @@ export default function AdminLibrariesPage() {
                       </span>
                     )}
                   </p>
+                </td>
+                <td className="py-3 px-3 text-xs text-bs-muted">
+                  <p>{lib.phone || "—"}</p>
+                  {lib.website ? (
+                    <a
+                      href={lib.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-bs-teal hover:underline truncate block max-w-[12rem]"
+                    >
+                      {lib.website.replace(/^https?:\/\//, "")}
+                    </a>
+                  ) : (
+                    <p>—</p>
+                  )}
                 </td>
                 <td className="py-3 px-3">
                   <StatusPill status={lib.status} />

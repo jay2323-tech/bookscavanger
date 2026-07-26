@@ -22,10 +22,15 @@ function libraryKeyFromEdition(e: Edition) {
   return `${e.library_name}|${e.latitude}|${e.longitude}`;
 }
 
-export default function SearchClient() {
+export default function SearchClient({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   const params = useSearchParams();
   const initialQuery = params.get("q") || "";
   const similarTitle = params.get("similar") || "";
+  const planHref = "/plan";
 
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<Edition[]>([]);
@@ -317,15 +322,16 @@ export default function SearchClient() {
       />
     ) : null;
 
-  return (
-    <PageShell className="!max-w-7xl">
+  const body = (
       <div className="bs-fade-in">
-        <p
-          className="text-sm font-semibold text-bs-teal mb-1"
-          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
-        >
-          BookScavenger
-        </p>
+        {!embedded && (
+          <p
+            className="text-sm font-semibold text-bs-teal mb-1"
+            style={{ fontFamily: "var(--font-display), Georgia, serif" }}
+          >
+            BookScavenger
+          </p>
+        )}
         <h1
           className="text-2xl sm:text-3xl font-semibold text-bs-ink mb-1"
           style={{ fontFamily: "var(--font-display), Georgia, serif" }}
@@ -336,7 +342,7 @@ export default function SearchClient() {
           Search title, author, or ISBN — then get directions to the nearest copy.
         </p>
 
-        <div className="sticky top-[3.75rem] z-30 -mx-1 px-1 py-3 bg-bs-paper/90 backdrop-blur-sm border-b border-bs-line/60 mb-4">
+        <div className="sticky top-16 z-30 -mx-1 px-1 py-3 bg-bs-paper/90 backdrop-blur-sm border-b border-bs-line/60 mb-4">
           <SearchBar
             query={query}
             setQuery={setQuery}
@@ -352,7 +358,7 @@ export default function SearchClient() {
             >
               Alert me nearby
             </button>
-            <Link href="/plan" className="text-bs-teal hover:underline">
+            <Link href={planHref} className="text-bs-teal hover:underline">
               Book-run planner
             </Link>
             {mapLibraries.length > 0 && (
@@ -451,6 +457,11 @@ export default function SearchClient() {
           <div className="lg:hidden mt-6 bs-fade-in">{mapPane}</div>
         )}
       </div>
-    </PageShell>
   );
+
+  if (embedded) {
+    return <div className="max-w-7xl">{body}</div>;
+  }
+
+  return <PageShell className="!max-w-7xl">{body}</PageShell>;
 }

@@ -7,7 +7,7 @@ export default function AdminDashboardLayout({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-[calc(100vh-4.5rem)] bs-field text-bs-ink">
+    <div className="flex min-h-screen bs-field text-bs-ink">
       <AdminNav />
       <div className="flex-1 min-w-0 pb-20 md:pb-0">{children}</div>
     </div>

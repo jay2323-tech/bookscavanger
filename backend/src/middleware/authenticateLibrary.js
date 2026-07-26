@@ -60,7 +60,9 @@ export async function authenticateLibrary(req, res, next) {
     const { data: library, error: libError } =
       await supabaseAdmin
         .from("libraries")
-        .select("id, name, approved, rejected")
+        .select(
+          "id, name, email, website, phone, latitude, longitude, opens_at, closes_at, approved, rejected"
+        )
         .eq("supabase_user_id", userId)
         .single();
 
