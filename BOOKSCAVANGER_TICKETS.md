@@ -62,17 +62,17 @@ nearest in-stock copies with covers, hours, directions, and a clear next action.
 
 ## P3 — Platform scale
 
-- [ ] **BS-040** Dedicated search engine (Meilisearch) — deferred; code is opt-in via `MEILI_HOST`
+- [x] **BS-040** Dedicated search engine (Meilisearch) — opt-in via `MEILI_HOST`; local brew + warm-index + `scripts/meili-sync.js`
 - [x] **BS-041** Rate limits + edge cache for public search
 - [x] **BS-042** PWA / mobile-first installable app
 - [x] **BS-043** ILS / Koha connector for auto inventory sync
 
-See **[P3.md](./P3.md)** for Meili / ILS setup when ready.
+See **[P3.md](./P3.md)** for Meili / popularity / ILS setup.
 
 ---
 
 ## Suggested next
 
-1. **BS-040** — Turn on Meilisearch later (`docker compose` + `MEILI_HOST` + meili-sync)  
-2. Polish / real library onboarding feedback from users  
-3. Optional: cache Open Library metadata in Supabase for colder books 
+1. Run Supabase migrations **008** + **009** if not already  
+2. Turn on Meili in production (Render / Meili Cloud + `MEILI_HOST`)  
+3. Optional Phase 4/5: Redis shared cache, semantic recall / LTR

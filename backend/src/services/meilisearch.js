@@ -50,7 +50,7 @@ export async function ensureBooksIndex() {
     method: "PATCH",
     body: JSON.stringify({
       searchableAttributes: ["title", "author", "isbn"],
-      filterableAttributes: ["library_id", "available"],
+      filterableAttributes: ["library_id", "available", "verified"],
       sortableAttributes: ["title"],
       typoTolerance: { enabled: true },
     }),
@@ -73,6 +73,7 @@ export function toMeiliDoc(book) {
     longitude: lib.longitude ?? book.longitude ?? null,
     opens_at: lib.opens_at ?? null,
     closes_at: lib.closes_at ?? null,
+    verified: lib.verified === true || book.verified === true,
   };
 }
 
@@ -111,6 +112,7 @@ export async function searchMeili(q, { limit = 80 } = {}) {
           "longitude",
           "opens_at",
           "closes_at",
+          "verified",
         ],
       }),
     });
@@ -119,4 +121,14 @@ export async function searchMeili(q, { limit = 80 } = {}) {
     console.warn("Meili search fallback:", err.message);
     return null;
   }
+}
+
+/**
+ * Background full reindex from Supabase (used on boot when Meili is empty).
+ */
+export async function syncAllBooksFromSupabase(fetchBooks) {
+  if (!meiliEnabled()) return { indexed: 0, skipped: true };
+  await ensureBooksIndex();
+  const books = await fetchBooks();
+  return indexBooks(books || []);
 }

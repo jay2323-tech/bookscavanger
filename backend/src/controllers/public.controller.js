@@ -2,6 +2,10 @@ import { supabase } from "../config/db.js";
 import { calculateDistance } from "../utils/distance.js";
 import { searchMeili, meiliEnabled } from "../services/meilisearch.js";
 import { attachIsbnCovers, enrichEditions } from "../services/openLibrary.js";
+import {
+  getPopularityMap,
+  recordSearchQuery,
+} from "../services/popularity.js";
 
 /** Escape for PostgREST or() filter values */
 function sanitize(q = "") {
@@ -324,31 +328,6 @@ async function fetchFuzzyCandidates(q) {
     .map((x) => x.book);
 }
 
-/** Recent search query → count (popularity signal) */
-async function getPopularityMap() {
-  const { data, error } = await supabase
-    .from("analytics")
-    .select("metadata, created_at")
-    .eq("event_type", "search")
-    .order("created_at", { ascending: false })
-    .limit(800);
-
-  if (error) {
-    console.error("popularity map:", error.message);
-    return {};
-  }
-
-  const counts = {};
-  for (const row of data || []) {
-    const q = String(row.metadata?.query || "")
-      .toLowerCase()
-      .trim();
-    if (!q || q.length < 2) continue;
-    counts[q] = (counts[q] || 0) + 1;
-  }
-  return counts;
-}
-
 /**
  * Ranking v2: available × distance × popularity
  * Higher score = better.
@@ -509,6 +488,8 @@ export async function searchBooks(req, res) {
       })
       .then()
       .catch((err) => console.error("Analytics error:", err));
+
+    void recordSearchQuery(q);
 
     res.json({
       results: editions,

@@ -9,6 +9,7 @@ BookScavenger uses **Supabase** (Postgres + Auth).
 | `schema.sql` | Core tables: `profiles`, `libraries`, `books`, `analytics` + signup trigger |
 | `migrations/007_fix_handle_new_user.sql` | Fixes Google signup “Database error saving new user” (name/full_name trigger) |
 | `migrations/008_pg_trgm_fuzzy_search.sql` | Typo-tolerant fuzzy search via pg_trgm + `fuzzy_search_book_ids` RPC |
+| `migrations/009_search_popularity.sql` | Precomputed `search_popularity` + `bump_search_popularity` for ranking |
 | `rls_policies.sql` | Recommended RLS hardening |
 | `migrations/003_p2_holds_finds_alerts.sql` | Holds, finds, alerts |
 | `migrations/004_onboarding_hardening.sql` | Safe signup role, unique library user, atomic approve |

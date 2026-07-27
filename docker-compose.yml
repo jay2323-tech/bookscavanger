@@ -6,7 +6,7 @@ services:
     environment:
       MEILI_ENV: development
       MEILI_NO_ANALYTICS: "true"
-      # Optional: MEILI_MASTER_KEY=dev-master-key-change-me
+      MEILI_MASTER_KEY: dev-master-key-bookscavenger
     volumes:
       - meili_data:/meili_data
 

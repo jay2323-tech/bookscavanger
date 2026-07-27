@@ -600,7 +600,7 @@ export const syncMeilisearch = async (req, res) => {
     const { data, error } = await supabaseAdmin
       .from("books")
       .select(
-        "id, title, author, isbn, available, library_id, libraries(name, latitude, longitude, opens_at, closes_at)"
+        "id, title, author, isbn, available, library_id, libraries(name, latitude, longitude, opens_at, closes_at, verified)"
       )
       .limit(5000);
 
