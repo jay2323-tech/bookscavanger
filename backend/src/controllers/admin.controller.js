@@ -1,4 +1,23 @@
 import { supabaseAdmin } from "../config/supabase.js";
+import { sendLibraryJoinEmail } from "../services/email.js";
+import { refreshLibraryVerified } from "../services/libraryVerified.js";
+
+/**
+ * Resolve best email for a library (library.email, then auth user email).
+ */
+async function resolveLibraryEmail(library) {
+  if (library?.email) return String(library.email).trim();
+  if (!library?.supabase_user_id) return null;
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.getUserById(
+      library.supabase_user_id
+    );
+    if (error || !data?.user?.email) return null;
+    return data.user.email;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 📊 Admin stats
@@ -52,9 +71,7 @@ export const getAnalytics = async (req, res) => {
  */
 export const getPendingLibrarians = async (req, res) => {
   try {
-    const { data, error } = await supabaseAdmin
-      .from("libraries")
-      .select(`
+    const fullSelect = `
         id,
         name,
         email,
@@ -68,14 +85,66 @@ export const getPendingLibrarians = async (req, res) => {
         created_at,
         approved,
         rejected
-      `)
+      `;
+
+    let { data, error } = await supabaseAdmin
+      .from("libraries")
+      .select(fullSelect)
       .eq("approved", false)
       .eq("rejected", false)
       .order("created_at", { ascending: true });
 
+    // Older DBs before migration 005
+    if (
+      error &&
+      (String(error.message).includes("website") ||
+        String(error.message).includes("phone"))
+    ) {
+      ({ data, error } = await supabaseAdmin
+        .from("libraries")
+        .select(
+          `
+          id,
+          name,
+          email,
+          latitude,
+          longitude,
+          opens_at,
+          closes_at,
+          supabase_user_id,
+          created_at,
+          approved,
+          rejected
+        `
+        )
+        .eq("approved", false)
+        .eq("rejected", false)
+        .order("created_at", { ascending: true }));
+    }
+
     if (error) throw error;
 
-    return res.json(data || []);
+    const rows = (data || []).map((row) => {
+      const hasWebsite = !!row.website;
+      const hasPhone = !!row.phone;
+      const hasHours = !!(row.opens_at && row.closes_at);
+      const hasLocation = row.latitude != null && row.longitude != null;
+      const hasEmail = !!row.email;
+      return {
+        ...row,
+        website: row.website ?? null,
+        phone: row.phone ?? null,
+        checklist: {
+          email: hasEmail,
+          website: hasWebsite,
+          phone: hasPhone,
+          hours: hasHours,
+          location: hasLocation,
+        },
+      };
+    });
+
+    return res.json(rows);
   } catch (err) {
     console.error("getPendingLibrarians:", err);
     return res.status(500).json({
@@ -104,7 +173,7 @@ export const approveLibrarian = async (req, res) => {
     // 1️⃣ Fetch library
     const { data: library, error: libErr } = await supabaseAdmin
       .from("libraries")
-      .select("id, supabase_user_id, approved, rejected")
+      .select("id, name, email, supabase_user_id, approved, rejected")
       .eq("id", libraryId)
       .single();
 
@@ -183,12 +252,85 @@ export const approveLibrarian = async (req, res) => {
       }
     }
 
-    return res.json({ success: true });
+    await refreshLibraryVerified(libraryId);
+
+    const to = await resolveLibraryEmail(library);
+    let emailResult = { skipped: true, reason: "no email" };
+    if (to) {
+      emailResult = await sendLibraryJoinEmail({
+        to,
+        libraryName: library.name,
+      });
+    }
+
+    return res.json({
+      success: true,
+      email: {
+        to: to || null,
+        skipped: !!emailResult.skipped,
+        ok: !!emailResult.ok,
+        reason: emailResult.reason || null,
+      },
+    });
   } catch (err) {
     console.error("approveLibrarian:", err);
     return res.status(500).json({
       error: "Approval failed",
     });
+  }
+};
+
+/**
+ * POST /api/admin/resend-join-email — re-send join link for an approved library
+ */
+export const resendLibraryJoinEmail = async (req, res) => {
+  try {
+    const { libraryId } = req.body || {};
+    if (!libraryId) {
+      return res.status(400).json({ error: "libraryId required" });
+    }
+
+    const { data: library, error } = await supabaseAdmin
+      .from("libraries")
+      .select("id, name, email, supabase_user_id, approved, rejected")
+      .eq("id", libraryId)
+      .single();
+
+    if (error || !library) {
+      return res.status(404).json({ error: "Library not found" });
+    }
+    if (!library.approved || library.rejected) {
+      return res.status(400).json({
+        error: "Library must be approved before sending a join email",
+      });
+    }
+
+    const to = await resolveLibraryEmail(library);
+    if (!to) {
+      return res.status(400).json({ error: "No email on file for this library" });
+    }
+
+    const emailResult = await sendLibraryJoinEmail({
+      to,
+      libraryName: library.name,
+    });
+
+    if (emailResult.skipped) {
+      return res.json({
+        success: true,
+        skipped: true,
+        reason: emailResult.reason,
+        to,
+      });
+    }
+    if (!emailResult.ok) {
+      return res.status(500).json({ error: "Failed to send email" });
+    }
+
+    return res.json({ success: true, to });
+  } catch (err) {
+    console.error("resendLibraryJoinEmail:", err);
+    return res.status(500).json({ error: "Failed to resend join email" });
   }
 };
 
@@ -379,15 +521,43 @@ export const getLibraries = async (req, res) => {
         approved,
         rejected,
         reject_reason,
+        verified,
         created_at,
         books(count)
       `
       )
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    let rows = data;
+    let fetchError = error;
 
-    const libraries = (data || []).map((row) => {
+    if (fetchError && String(fetchError.message).includes("verified")) {
+      ({ data: rows, error: fetchError } = await supabaseAdmin
+        .from("libraries")
+        .select(
+          `
+          id,
+          name,
+          email,
+          website,
+          phone,
+          latitude,
+          longitude,
+          opens_at,
+          closes_at,
+          approved,
+          rejected,
+          reject_reason,
+          created_at,
+          books(count)
+        `
+        )
+        .order("created_at", { ascending: false }));
+    }
+
+    if (fetchError) throw fetchError;
+
+    const libraries = (rows || []).map((row) => {
       const bookCount = Array.isArray(row.books)
         ? Number(row.books[0]?.count ?? 0)
         : 0;
@@ -395,7 +565,12 @@ export const getLibraries = async (req, res) => {
       let status = "pending";
       if (row.rejected) status = "rejected";
       else if (row.approved) status = "approved";
-      return { ...rest, book_count: bookCount, status };
+      return {
+        ...rest,
+        verified: rest.verified === true,
+        book_count: bookCount,
+        status,
+      };
     });
 
     return res.json(libraries);

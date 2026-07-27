@@ -11,10 +11,11 @@ import {
   getOAuthIntent,
   resolveAuthDestination,
   setOAuthIntent,
+  setOAuthNext,
 } from "@/app/library/resolveAuthDestination";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function readNextParam() {
   if (typeof window === "undefined") return null;
@@ -28,6 +29,14 @@ export default function LibraryLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [asLibrarian, setAsLibrarian] = useState(false);
+
+  useEffect(() => {
+    const next = readNextParam();
+    if (next) {
+      setOAuthNext(next);
+      if (next.startsWith("/library/onboarding")) setAsLibrarian(true);
+    }
+  }, []);
 
   const handlePostLogin = async (accessToken: string) => {
     const status = await fetchOnboardingStatus(accessToken);
@@ -70,11 +79,12 @@ export default function LibraryLoginPage() {
     setLoading(true);
     try {
       setOAuthIntent(asLibrarian ? "librarian" : "reader");
+      const next = readNextParam();
+      if (next) setOAuthNext(next);
       const callback = new URL(
         "/library/oauth-callback",
         window.location.origin
       );
-      const next = readNextParam();
       if (next) callback.searchParams.set("next", next);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",

@@ -54,3 +54,29 @@ export async function sendEmail({ to, subject, html, text }) {
     return { ok: false, error: err };
   }
 }
+
+/**
+ * Email librarian a join link after admin approval.
+ */
+export async function sendLibraryJoinEmail({ to, libraryName }) {
+  const joinUrl = `${appUrl()}/library/login?next=${encodeURIComponent(
+    "/library/dashboard/overview"
+  )}`;
+  const name = libraryName || "your library";
+  const subject = `${name} is approved on BookScavenger`;
+  const text = `Good news — ${name} is verified and ready to join BookScavenger.\n\nSign in to open your librarian desk:\n${joinUrl}\n\nIf you didn't apply, you can ignore this email.`;
+  const html = `
+    <p>Good news — <strong>${escapeHtml(name)}</strong> is verified and ready to join BookScavenger.</p>
+    <p><a href="${joinUrl}">Open your librarian desk</a></p>
+    <p style="color:#666;font-size:13px;">If you didn't apply, you can ignore this email.</p>
+  `;
+  return sendEmail({ to, subject, html, text });
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}

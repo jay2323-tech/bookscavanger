@@ -7,6 +7,7 @@ import {
   getPendingLibrarians,
   getSearchInsights,
   rejectLibrarian,
+  resendLibraryJoinEmail,
   syncMeilisearch,
 } from "../controllers/admin.controller.js";
 import { authenticateAdmin } from "../middleware/authenticateAdmin.js";
@@ -20,6 +21,7 @@ router.get("/search-insights", authenticateAdmin, getSearchInsights);
 router.get("/pending-librarians", authenticateAdmin, getPendingLibrarians);
 router.post("/approve-librarian", authenticateAdmin, approveLibrarian);
 router.post("/reject-librarian", authenticateAdmin, rejectLibrarian);
+router.post("/resend-join-email", authenticateAdmin, resendLibraryJoinEmail);
 router.post("/meili-sync", authenticateAdmin, syncMeilisearch);
 
 export default router;

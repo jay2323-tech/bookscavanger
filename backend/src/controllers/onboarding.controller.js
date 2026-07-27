@@ -48,7 +48,7 @@ async function ensureProfile(userId, user, { role = "customer", approved = false
 }
 
 const LIBRARY_STATUS_FIELDS =
-  "id, name, email, website, phone, latitude, longitude, opens_at, closes_at, approved, rejected, reject_reason, created_at";
+  "id, name, email, website, phone, latitude, longitude, opens_at, closes_at, approved, rejected, reject_reason, verified, created_at";
 
 export async function getLibraryOnboardingStatus(req, res) {
   try {
@@ -60,8 +60,13 @@ export async function getLibraryOnboardingStatus(req, res) {
       .eq("supabase_user_id", userId)
       .maybeSingle();
 
-    // Older DBs before migration 005
-    if (error && String(error.message).includes("website")) {
+    // Older DBs before migration 005 / 006
+    if (
+      error &&
+      (String(error.message).includes("website") ||
+        String(error.message).includes("verified") ||
+        String(error.message).includes("reject_reason"))
+    ) {
       ({ data: library, error } = await supabaseAdmin
         .from("libraries")
         .select(
@@ -122,8 +127,16 @@ export async function getLibraryOnboardingStatus(req, res) {
 export async function createLibraryOnboarding(req, res) {
   try {
     const userId = req.user.id;
-    const { name, email, latitude, longitude, opens_at, closes_at, website, phone } =
-      req.body || {};
+    const {
+      name,
+      email,
+      latitude,
+      longitude,
+      opens_at,
+      closes_at,
+      website,
+      phone,
+    } = req.body || {};
 
     if (!name?.trim()) {
       return res.status(400).json({
@@ -202,6 +215,7 @@ export async function createLibraryOnboarding(req, res) {
 
       return res.status(200).json({
         message: "Library application updated",
+        approved: false,
       });
     }
 
@@ -238,6 +252,7 @@ export async function createLibraryOnboarding(req, res) {
 
     return res.status(201).json({
       message: "Library submitted for approval",
+      approved: false,
     });
   } catch (err) {
     console.error("createLibraryOnboarding:", err);

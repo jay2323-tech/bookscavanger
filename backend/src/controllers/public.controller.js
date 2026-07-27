@@ -1,7 +1,7 @@
 import { supabase } from "../config/db.js";
 import { calculateDistance } from "../utils/distance.js";
 import { searchMeili, meiliEnabled } from "../services/meilisearch.js";
-import { enrichEditions } from "../services/openLibrary.js";
+import { attachIsbnCovers, enrichEditions } from "../services/openLibrary.js";
 
 /** Escape for PostgREST or() filter values */
 function sanitize(q = "") {
@@ -62,6 +62,7 @@ function mapBook(book, lat, lng) {
     opens_at,
     closes_at,
     open_now: isOpenNow(opens_at, closes_at),
+    verified: lib?.verified === true,
   };
 }
 
@@ -123,6 +124,7 @@ function groupIntoEditions(results) {
       opens_at: book.opens_at,
       closes_at: book.closes_at,
       open_now: book.open_now,
+      verified: book.verified === true,
       rank_score: book.rank_score,
     });
     if (
@@ -179,18 +181,29 @@ async function fetchMatchingBooks(q) {
           longitude: h.longitude,
           opens_at: h.opens_at,
           closes_at: h.closes_at,
+          verified: h.verified === true,
         },
       }));
     }
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("books")
     .select(
-      "*, libraries(name, latitude, longitude, opens_at, closes_at)"
+      "*, libraries(name, latitude, longitude, opens_at, closes_at, verified)"
     )
     .or(`title.ilike.%${q}%,author.ilike.%${q}%,isbn.ilike.%${q}%`)
     .limit(200);
+
+  if (error && String(error.message).includes("verified")) {
+    ({ data, error } = await supabase
+      .from("books")
+      .select(
+        "*, libraries(name, latitude, longitude, opens_at, closes_at)"
+      )
+      .or(`title.ilike.%${q}%,author.ilike.%${q}%,isbn.ilike.%${q}%`)
+      .limit(200));
+  }
 
   if (error) {
     // Fallback if hours columns not migrated yet
@@ -209,16 +222,80 @@ async function fetchMatchingBooks(q) {
 }
 
 async function fetchFuzzyCandidates(q) {
+  // Prefer pg_trgm RPC when migration 008 is applied
+  try {
+    const { data: ranked, error: rpcError } = await supabase.rpc(
+      "fuzzy_search_book_ids",
+      { p_query: q, p_limit: 80 }
+    );
+
+    if (
+      !rpcError &&
+      Array.isArray(ranked) &&
+      ranked.length > 0
+    ) {
+      const ids = ranked.map((r) => r.id).filter(Boolean);
+      const scoreById = new Map(
+        ranked.map((r) => [r.id, Number(r.score) || 0])
+      );
+
+      let { data, error } = await supabase
+        .from("books")
+        .select(
+          "*, libraries(name, latitude, longitude, opens_at, closes_at, verified)"
+        )
+        .in("id", ids);
+
+      if (error && String(error.message).includes("verified")) {
+        ({ data, error } = await supabase
+          .from("books")
+          .select(
+            "*, libraries(name, latitude, longitude, opens_at, closes_at)"
+          )
+          .in("id", ids));
+      }
+
+      if (error && String(error.message).includes("opens_at")) {
+        ({ data, error } = await supabase
+          .from("books")
+          .select("*, libraries(name, latitude, longitude)")
+          .in("id", ids));
+      }
+
+      if (!error && data?.length) {
+        return data
+          .filter((b) => b.libraries && (scoreById.get(b.id) ?? 0) >= 0.25)
+          .sort(
+            (a, b) =>
+              (scoreById.get(b.id) || 0) - (scoreById.get(a.id) || 0)
+          );
+      }
+    }
+  } catch (err) {
+    console.warn("fuzzy_search_book_ids RPC skip:", err.message);
+  }
+
+  // Fallback: prefix ilike + JS Levenshtein (pre-migration 008)
   const prefix = q.slice(0, Math.min(4, q.length));
   if (prefix.length < 2) return [];
 
   let { data, error } = await supabase
     .from("books")
     .select(
-      "*, libraries(name, latitude, longitude, opens_at, closes_at)"
+      "*, libraries(name, latitude, longitude, opens_at, closes_at, verified)"
     )
     .or(`title.ilike.%${prefix}%,author.ilike.%${prefix}%`)
     .limit(300);
+
+  if (error && String(error.message).includes("verified")) {
+    ({ data, error } = await supabase
+      .from("books")
+      .select(
+        "*, libraries(name, latitude, longitude, opens_at, closes_at)"
+      )
+      .or(`title.ilike.%${prefix}%,author.ilike.%${prefix}%`)
+      .limit(300));
+  }
 
   if (error && String(error.message).includes("opens_at")) {
     const retry = await supabase
@@ -407,11 +484,12 @@ export async function searchBooks(req, res) {
       /* book_finds may not exist yet */
     }
 
-    try {
-      await enrichEditions(editions, { maxLookups: 10 });
-    } catch (err) {
+    // Sync ISBN CDN covers only — do not block on Open Library HTTP
+    attachIsbnCovers(editions);
+    // Warm title/author meta cache in background for the next request
+    void enrichEditions(editions, { maxLookups: 10 }).catch((err) => {
       console.warn("cover enrich skip:", err.message);
-    }
+    });
 
     await supabase
       .from("analytics")

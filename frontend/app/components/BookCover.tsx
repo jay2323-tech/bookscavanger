@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 type Props = {
@@ -19,13 +20,14 @@ export default function BookCover({ src, title, className = "" }: Props) {
       aria-hidden={!showImg}
     >
       {showImg ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <Image
           src={src!}
           alt=""
-          className="h-full w-full object-cover"
-          loading="lazy"
+          fill
+          sizes="72px"
+          className="object-cover"
           referrerPolicy="no-referrer"
+          unoptimized={src!.includes("openlibrary.org")}
           onError={() => setFailed(true)}
         />
       ) : (

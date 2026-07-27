@@ -213,7 +213,7 @@ export default function LibrarianOnboardingPage() {
     <AuthShell
       eyebrow="Librarian"
       title={existingId ? "Update application" : "Library onboarding"}
-      subtitle="We verify libraries before they go live. Website and phone help us confirm you’re real."
+      subtitle="We verify libraries before they go live. Website and phone help us confirm you’re real. After approval you’ll get an email with a join link."
       wide
     >
       <div className="space-y-4">

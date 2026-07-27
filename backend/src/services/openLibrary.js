@@ -78,23 +78,33 @@ async function lookupByTitleAuthor(title, author) {
 }
 
 /**
- * Mutates editions in place with cover_url, publish_year, subjects.
- * Caps network lookups so search stays snappy.
+ * Sync ISBN CDN covers only (no network). Safe on the search critical path.
  */
-export async function enrichEditions(editions = [], { maxLookups = 8 } = {}) {
-  let lookups = 0;
-  const tasks = [];
-
+export function attachIsbnCovers(editions = []) {
   for (const e of editions) {
     const isbn =
       cleanIsbn(e.isbns?.[0]) ||
       cleanIsbn(e.copies?.find((c) => c.isbn)?.isbn);
 
     if (isbn) {
-      e.cover_url = coverUrlFromIsbn(isbn);
-      e.primary_isbn = isbn;
+      e.cover_url = e.cover_url || coverUrlFromIsbn(isbn);
+      e.primary_isbn = e.primary_isbn || isbn;
     }
+  }
+  return editions;
+}
 
+/**
+ * Mutates editions in place with cover_url, publish_year, subjects.
+ * Caps network lookups so search stays snappy.
+ * Prefer attachIsbnCovers + fire-and-forget this after responding.
+ */
+export async function enrichEditions(editions = [], { maxLookups = 8 } = {}) {
+  attachIsbnCovers(editions);
+  let lookups = 0;
+  const tasks = [];
+
+  for (const e of editions) {
     if (!e.cover_url && lookups < maxLookups && e.title) {
       lookups += 1;
       tasks.push(

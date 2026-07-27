@@ -1,12 +1,12 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import EditionResultCard, {
   type Edition,
 } from "../components/EditionResultCard";
 import EmptyState from "../components/EmptyState";
-import LibraryMap from "../components/LibraryMap";
 import LoadingSkeleton from "../components/LoadingSkeleton";
 import SearchBar from "../components/SearchBar";
 import SearchFilters, {
@@ -24,6 +24,42 @@ import {
 } from "@/app/lib/guestSearchGate";
 import { supabase } from "@/app/lib/supabaseClient";
 import Link from "next/link";
+
+const LibraryMap = dynamic(() => import("../components/LibraryMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-64 rounded-xl border border-bs-line bg-bs-paper animate-pulse" />
+  ),
+});
+
+const GEO_KEY = "bs_last_geo";
+
+function readCachedGeo(): { lat: number; lng: number } | null {
+  try {
+    const raw = sessionStorage.getItem(GEO_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      typeof parsed?.lat === "number" &&
+      typeof parsed?.lng === "number" &&
+      !Number.isNaN(parsed.lat) &&
+      !Number.isNaN(parsed.lng)
+    ) {
+      return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function writeCachedGeo(lat: number, lng: number) {
+  try {
+    sessionStorage.setItem(GEO_KEY, JSON.stringify({ lat, lng }));
+  } catch {
+    /* ignore */
+  }
+}
 
 function libraryKeyFromEdition(e: Edition) {
   return `${e.library_name}|${e.latitude}|${e.longitude}`;
@@ -205,6 +241,7 @@ export default function SearchClient({
             opens_at: b.opens_at,
             closes_at: b.closes_at,
             open_now: b.open_now,
+            verified: b.verified === true,
           },
         ],
       };
@@ -235,47 +272,59 @@ export default function SearchClient({
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
 
-    setLoading(true);
+    // Only show skeleton on first empty load — keep prior results visible (SWR)
+    const firstLoad = results.length === 0;
+    if (firstLoad) setLoading(true);
     setError("");
     setFuzzyNote(null);
     setLocationNote(null);
     setSelectedLibraryId(null);
 
-    const searchWithoutGeo = async () => {
-      setLocationNote(
-        "Enable location for distance ranking and nearby filters."
-      );
-      await runSearch(q);
-    };
+    const cached = readCachedGeo();
 
-    if (!navigator.geolocation) {
-      try {
-        await searchWithoutGeo();
-      } catch {
-        setError("Failed to fetch books");
-      } finally {
-        setLoading(false);
+    try {
+      if (cached) {
+        await runSearch(q, cached.lat, cached.lng);
+      } else {
+        setLocationNote(
+          "Enable location for distance ranking and nearby filters."
+        );
+        await runSearch(q);
       }
-      return;
+    } catch {
+      setError("Failed to fetch books");
+    } finally {
+      setLoading(false);
     }
+
+    // Refine with fresh GPS in the background (do not block first paint)
+    if (!navigator.geolocation) return;
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        writeCachedGeo(lat, lng);
+        const same =
+          cached &&
+          Math.abs(cached.lat - lat) < 0.001 &&
+          Math.abs(cached.lng - lng) < 0.001;
+        if (same) {
+          setLocationNote(null);
+          return;
+        }
         try {
-          await runSearch(q, pos.coords.latitude, pos.coords.longitude);
+          setLocationNote(null);
+          await runSearch(q, lat, lng);
         } catch {
-          setError("Failed to fetch books");
-        } finally {
-          setLoading(false);
+          /* keep first results */
         }
       },
-      async () => {
-        try {
-          await searchWithoutGeo();
-        } catch {
-          setError("Failed to fetch books");
-        } finally {
-          setLoading(false);
+      () => {
+        if (!cached) {
+          setLocationNote(
+            "Enable location for distance ranking and nearby filters."
+          );
         }
       },
       { maximumAge: 60_000, timeout: 8000 }
@@ -364,7 +413,7 @@ export default function SearchClient({
   };
 
   const mapPane =
-    !loading && mapLibraries.length > 0 ? (
+    mapLibraries.length > 0 ? (
       <LibraryMap
         libraries={mapLibraries}
         selectedId={selectedLibraryId}
@@ -485,7 +534,7 @@ export default function SearchClient({
 
         <div className="lg:grid lg:grid-cols-[1fr_380px] lg:gap-8 lg:items-start">
           <div className="space-y-3 bs-stagger">
-            {loading && <LoadingSkeleton />}
+            {loading && results.length === 0 && <LoadingSkeleton />}
             {!loading && error && (
               <p className="text-bs-danger text-center py-6">{error}</p>
             )}

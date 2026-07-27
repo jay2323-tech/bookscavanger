@@ -3,6 +3,7 @@ import XLSX from "xlsx";
 import { supabaseAdmin } from "../config/supabase.js";
 import { fetchIlsInventory } from "../connectors/ils.js";
 import { indexBooks, meiliEnabled } from "../services/meilisearch.js";
+import { refreshLibraryVerified } from "../services/libraryVerified.js";
 import {
   normalizePhone,
   normalizeWebsite,
@@ -158,6 +159,7 @@ export async function addBook(req, res) {
     if (error) throw error;
 
     await maybeIndex([data]);
+    await refreshLibraryVerified(libraryId);
 
     res.status(201).json({
       message: "Book added successfully",
@@ -243,6 +245,7 @@ export async function deleteBook(req, res) {
       .eq("id", bookId);
 
     if (error) throw error;
+    await refreshLibraryVerified(existing.library_id);
     res.json({ success: true });
   } catch (err) {
     console.error("deleteBook:", err.message);
@@ -328,7 +331,11 @@ export async function updateLibraryProfile(req, res) {
     }
 
     if (error) throw error;
-    res.json({ message: "Profile updated", library: data });
+    const verified = await refreshLibraryVerified(req.library.id);
+    res.json({
+      message: "Profile updated",
+      library: { ...data, verified },
+    });
   } catch (err) {
     console.error("updateLibraryProfile:", err.message);
     res.status(500).json({ error: "Failed to update profile" });
@@ -389,7 +396,11 @@ export async function updateLibraryHours(req, res) {
       .single();
 
     if (error) throw error;
-    res.json({ message: "Hours updated", library: data });
+    const verified = await refreshLibraryVerified(req.library.id);
+    res.json({
+      message: "Hours updated",
+      library: { ...data, verified },
+    });
   } catch (err) {
     console.error("updateLibraryHours:", err.message);
     res.status(500).json({
@@ -439,6 +450,7 @@ export async function uploadBooksFromExcel(req, res) {
     if (error) throw error;
 
     await maybeIndex(insertedRows || []);
+    await refreshLibraryVerified(req.library.id);
 
     await supabaseAdmin.from("analytics").insert({
       event_type: "upload",
@@ -501,6 +513,8 @@ export async function syncIls(req, res) {
       inserted += data?.length || chunk.length;
       await maybeIndex(data || []);
     }
+
+    await refreshLibraryVerified(req.library.id);
 
     await supabaseAdmin.from("analytics").insert({
       event_type: "ils_sync",

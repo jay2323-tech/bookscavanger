@@ -16,6 +16,7 @@ export type ResolveAuthInput = {
 };
 
 const INTENT_KEY = "oauth_intent";
+const NEXT_KEY = "oauth_next";
 
 /**
  * Single source of truth for post-login / OAuth routing.
@@ -78,6 +79,20 @@ export function clearOAuthIntent() {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(INTENT_KEY);
   localStorage.removeItem(INTENT_KEY);
+  sessionStorage.removeItem(NEXT_KEY);
+}
+
+/** Persist ?next= across Google OAuth (redirectTo can't carry query safely). */
+export function setOAuthNext(next: string | null | undefined) {
+  if (typeof window === "undefined") return;
+  const safe = safeNextPath(next);
+  if (safe) sessionStorage.setItem(NEXT_KEY, safe);
+  else sessionStorage.removeItem(NEXT_KEY);
+}
+
+export function getOAuthNext(): string | null {
+  if (typeof window === "undefined") return null;
+  return safeNextPath(sessionStorage.getItem(NEXT_KEY));
 }
 
 /** Same-origin relative path only (blocks //evil.com). */
@@ -88,7 +103,7 @@ export function safeNextPath(next: string | null | undefined): string | null {
   return next;
 }
 
-/** Honor ?next= only for default reader landings. */
+/** Honor ?next= for reader landings and login deep-links. */
 export function applySafeNext(
   destination: string,
   next: string | null | undefined
@@ -98,7 +113,9 @@ export function applySafeNext(
   if (
     destination === "/search" ||
     destination === "/library/dashboard/customer" ||
-    safe.startsWith("/search")
+    destination === "/library/onboarding" ||
+    safe.startsWith("/search") ||
+    safe.startsWith("/library/onboarding")
   ) {
     return safe;
   }

@@ -1,18 +1,24 @@
-/* BookScavenger PWA — cache shell for offline reopen */
-const CACHE = "bookscavanger-shell-v2";
+/* BookScavenger PWA — shell cache + network-first for hashed assets */
+const CACHE = "bookscavanger-shell-v3";
 const PRECACHE = ["/", "/search", "/plan", "/manifest.webmanifest", "/icons/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting())
+    caches
+      .open(CACHE)
+      .then((cache) => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      )
+      .then(() => self.clients.claim())
   );
 });
 
@@ -29,8 +35,24 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/admin/") ||
     url.hostname.includes("supabase") ||
     url.hostname.includes("onrender") ||
-    url.hostname === "localhost" && url.port === "8080"
+    (url.hostname === "localhost" && url.port === "8080")
   ) {
+    return;
+  }
+
+  // Network-first for Next hashed assets so deploys aren't stuck on stale JS/CSS
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(request))
+    );
     return;
   }
 
@@ -43,25 +65,33 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE).then((c) => c.put(request, copy));
           return res;
         })
-        .catch(() => caches.match(request).then((r) => r || caches.match("/")))
+        .catch(() =>
+          caches.match(request).then((r) => r || caches.match("/"))
+        )
     );
     return;
   }
 
-  // Cache-first for static (don't throw if network fails)
+  // Stale-while-revalidate for other same-origin GETs (icons, etc.)
   event.respondWith(
     caches.match(request).then(async (cached) => {
-      if (cached) return cached;
-      try {
-        const res = await fetch(request);
-        if (res.ok && url.origin === self.location.origin) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy));
-        }
-        return res;
-      } catch {
-        return new Response("", { status: 504, statusText: "Offline" });
+      const network = fetch(request)
+        .then((res) => {
+          if (res.ok && url.origin === self.location.origin) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy));
+          }
+          return res;
+        })
+        .catch(() => null);
+
+      if (cached) {
+        void network;
+        return cached;
       }
+
+      const res = await network;
+      return res || new Response("", { status: 504, statusText: "Offline" });
     })
   );
 });

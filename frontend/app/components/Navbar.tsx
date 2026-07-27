@@ -6,23 +6,47 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-function GuestNavbar({ pathname }: { pathname: string }) {
+const AUTH_PATHS = [
+  "/library/login",
+  "/library/signup",
+  "/library/onboarding",
+  "/library/pending",
+  "/library/rejected",
+  "/library/oauth-callback",
+  "/admin/login",
+  "/admin/oauth-callback",
+];
+
+function isAuthPath(pathname: string) {
+  return AUTH_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`)
+  );
+}
+
+const LINKS = [
+  { href: "/search", label: "Find books" },
+  { href: "/plan", label: "Book run" },
+  { href: "/about", label: "About" },
+  { href: "/for-libraries", label: "For libraries" },
+] as const;
+
+/** Static guest chrome — same HTML on server and first client paint. */
+function GuestHeader({
+  pathname,
+  showLogin,
+}: {
+  pathname: string;
+  showLogin: boolean;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
 
-  const links = [
-    { href: "/search", label: "Find books" },
-    { href: "/plan", label: "Book run" },
-    { href: "/about", label: "About" },
-    { href: "/for-libraries", label: "For libraries" },
-  ];
-
   const linkClass = (href: string) =>
     `text-sm transition border-b-2 pb-0.5 ${
-      pathname === href || pathname.startsWith(href + "/")
+      pathname === href || pathname.startsWith(`${href}/`)
         ? "text-bs-ink border-bs-gold"
         : "text-bs-muted border-transparent hover:text-bs-ink"
     }`;
@@ -39,7 +63,7 @@ function GuestNavbar({ pathname }: { pathname: string }) {
             Book<span className="text-bs-gold">Scavenger</span>
           </Link>
           <div className="hidden md:flex items-center gap-5">
-            {links.map((l) => (
+            {LINKS.map((l) => (
               <Link key={l.href} href={l.href} className={linkClass(l.href)}>
                 {l.label}
               </Link>
@@ -48,12 +72,14 @@ function GuestNavbar({ pathname }: { pathname: string }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link
-            href="/library/login"
-            className="inline-flex text-sm font-semibold bg-bs-gold text-bs-gold-ink px-3 sm:px-4 py-2 rounded-lg hover:brightness-95"
-          >
-            Login
-          </Link>
+          {showLogin ? (
+            <Link
+              href="/library/login"
+              className="inline-flex text-sm font-semibold bg-bs-gold text-bs-gold-ink px-3 sm:px-4 py-2 rounded-lg hover:brightness-95"
+            >
+              Login
+            </Link>
+          ) : null}
 
           <button
             type="button"
@@ -80,10 +106,10 @@ function GuestNavbar({ pathname }: { pathname: string }) {
         </div>
       </nav>
 
-      {menuOpen && (
-        <div className="md:hidden border-t border-bs-line bg-bs-surface px-4 pb-4 pt-2 bs-fade-in">
+      {menuOpen ? (
+        <div className="md:hidden border-t border-bs-line bg-bs-surface px-4 pb-4 pt-2">
           <div className="flex flex-col gap-1">
-            {links.map((l) => (
+            {LINKS.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
@@ -96,35 +122,37 @@ function GuestNavbar({ pathname }: { pathname: string }) {
                 {l.label}
               </Link>
             ))}
-            <Link
-              href="/library/login"
-              className="mt-2 rounded-lg bg-bs-gold text-bs-gold-ink px-3 py-3 text-sm font-semibold text-center"
-            >
-              Login / Signup
-            </Link>
+            {showLogin ? (
+              <Link
+                href="/library/login"
+                className="mt-2 rounded-lg bg-bs-gold text-bs-gold-ink px-3 py-3 text-sm font-semibold text-center"
+              >
+                Login / Signup
+              </Link>
+            ) : null}
           </div>
         </div>
-      )}
+      ) : null}
     </header>
   );
 }
 
 /**
- * Auth-dependent chrome only after mount so SSR HTML matches the first client paint.
+ * Auth UI only after mount. Until then always render the same guest header
+ * (Login hidden) so SSR HTML matches the first client render.
  */
 export default function Navbar() {
-  const pathname = usePathname();
+  const pathname = usePathname() || "/";
   const [mounted, setMounted] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
     setMounted(true);
 
-    const loadUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
-    };
-    loadUser();
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) setUser(data.session?.user ?? null);
+    });
 
     const {
       data: { subscription },
@@ -132,25 +160,26 @@ export default function Navbar() {
       setUser(session?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const isDashboardShell =
     pathname.startsWith("/library/dashboard") ||
     pathname.startsWith("/admin/dashboard");
 
-  if (isDashboardShell) {
-    return null;
-  }
+  if (isDashboardShell) return null;
 
-  // Identical on server + first client render
+  // Server + first client paint: identical
   if (!mounted) {
-    return <GuestNavbar pathname={pathname} />;
+    return <GuestHeader pathname={pathname} showLogin={false} />;
   }
 
-  if (user) {
-    return <DashboardNav />;
-  }
+  if (user) return <DashboardNav />;
 
-  return <GuestNavbar pathname={pathname} />;
+  return (
+    <GuestHeader pathname={pathname} showLogin={!isAuthPath(pathname)} />
+  );
 }

@@ -7,15 +7,22 @@ import TextField from "@/app/components/ui/TextField";
 import { supabase } from "@/app/lib/supabaseClient";
 import { fetchOnboardingStatus } from "@/app/library/fetchOnboardingStatus";
 import {
+  applySafeNext,
   clearOAuthIntent,
   resolveAuthDestination,
   setOAuthIntent,
+  setOAuthNext,
 } from "@/app/library/resolveAuthDestination";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Role = "customer" | "librarian";
+
+function readNextParam() {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("next");
+}
 
 export default function SignupPage() {
   const router = useRouter();
@@ -30,9 +37,18 @@ export default function SignupPage() {
     confirmPassword: "",
   });
 
+  useEffect(() => {
+    const next = readNextParam();
+    if (next) setOAuthNext(next);
+    if (next?.startsWith("/library/onboarding")) {
+      setRole("librarian");
+      setOAuthIntent("librarian");
+    }
+  }, []);
+
   const routeAfterSession = async (accessToken: string) => {
     const status = await fetchOnboardingStatus(accessToken);
-    const dest = resolveAuthDestination({
+    let dest = resolveAuthDestination({
       role: status.role,
       library: status.library
         ? {
@@ -42,17 +58,23 @@ export default function SignupPage() {
         : null,
       oauthIntent: "reader",
     });
+    dest = applySafeNext(dest, readNextParam());
     clearOAuthIntent();
     router.replace(dest);
   };
 
   const signupWithGoogle = async (intent: "reader" | "librarian") => {
     setOAuthIntent(intent);
+    const next = readNextParam();
+    if (next) setOAuthNext(next);
+    const callback = new URL(
+      "/library/oauth-callback",
+      window.location.origin
+    );
+    if (next) callback.searchParams.set("next", next);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/library/oauth-callback`,
-      },
+      options: { redirectTo: callback.toString() },
     });
     if (error) throw error;
   };
@@ -190,7 +212,14 @@ export default function SignupPage() {
 
       <p className="text-center text-sm text-bs-muted mt-6">
         Already have an account?{" "}
-        <Link href="/library/login" className="text-bs-teal font-medium hover:underline">
+        <Link
+          href={
+            readNextParam()
+              ? `/library/login?next=${encodeURIComponent(readNextParam()!)}`
+              : "/library/login"
+          }
+          className="text-bs-teal font-medium hover:underline"
+        >
           Sign in
         </Link>
       </p>

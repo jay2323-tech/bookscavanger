@@ -16,6 +16,7 @@ export default function AuthHashCatcher() {
     if (typeof window === "undefined") return;
 
     const hash = window.location.hash || "";
+    // Only forward successful token callbacks — ignore error hashes / empty
     if (!hash.includes("access_token")) return;
 
     const onCallback =

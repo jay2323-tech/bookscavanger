@@ -1,5 +1,6 @@
 "use client";
 
+import Button from "@/app/components/ui/Button";
 import { supabase } from "@/app/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -16,6 +17,7 @@ type LibraryRow = {
   closes_at: string | null;
   approved: boolean;
   rejected: boolean;
+  verified?: boolean;
   created_at: string;
   book_count: number;
   status: "approved" | "pending" | "rejected";
@@ -30,6 +32,13 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "rejected", label: "Rejected" },
 ];
 
+async function getToken() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session?.access_token || null;
+}
+
 export default function AdminLibrariesPage() {
   const router = useRouter();
   const [libraries, setLibraries] = useState<LibraryRow[]>([]);
@@ -37,16 +46,15 @@ export default function AdminLibrariesPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const [resendingId, setResendingId] = useState<string | number | null>(null);
+  const [actionMsg, setActionMsg] = useState("");
 
   useEffect(() => {
     let mounted = true;
 
     const load = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
+      const token = await getToken();
+      if (!token) {
         router.replace("/admin/login");
         return;
       }
@@ -54,29 +62,22 @@ export default function AdminLibrariesPage() {
       try {
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/libraries`,
-          { headers: { Authorization: `Bearer ${session.access_token}` } }
+          { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        if (!res.ok) {
-          const e = new Error("Failed to load libraries");
-          (e as Error & { status?: number }).status = res.status;
-          throw e;
+        if (res.status === 401 || res.status === 403) {
+          await supabase.auth.signOut();
+          router.replace("/admin/login");
+          return;
         }
+
+        if (!res.ok) throw new Error("Failed to load libraries");
 
         if (mounted) {
           setLibraries(await res.json());
           setLoading(false);
         }
       } catch (err: unknown) {
-        const status =
-          err && typeof err === "object" && "status" in err
-            ? Number((err as { status: number }).status)
-            : 0;
-        if (status === 401 || status === 403) {
-          await supabase.auth.signOut();
-          router.replace("/admin/login");
-          return;
-        }
         if (mounted) {
           setError(
             err instanceof Error ? err.message : "Failed to load libraries"
@@ -115,6 +116,39 @@ export default function AdminLibrariesPage() {
     };
   }, [libraries]);
 
+  const resendJoin = async (lib: LibraryRow) => {
+    setActionMsg("");
+    setResendingId(lib.id);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Not signed in");
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/resend-join-email`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ libraryId: lib.id }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send email");
+      if (data.skipped) {
+        setActionMsg(
+          `Email skipped (${data.reason || "Resend not configured"}). Set RESEND_API_KEY on the backend.`
+        );
+      } else {
+        setActionMsg(`Join email sent to ${data.to || lib.email || "library"}.`);
+      }
+    } catch (err: unknown) {
+      setActionMsg(err instanceof Error ? err.message : "Failed to send email");
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="px-5 sm:px-8 md:px-10 py-8 md:py-10 max-w-6xl mx-auto animate-pulse">
@@ -137,13 +171,20 @@ export default function AdminLibrariesPage() {
           Libraries
         </h1>
         <p className="mt-2 text-bs-muted text-sm md:text-base max-w-xl">
-          Every library on the platform — status, hours, and catalog size.
+          Review who&apos;s on the platform. Approving a pending library emails
+          them a join link; you can resend it anytime for approved libraries.
         </p>
       </header>
 
       {error && (
         <div className="mb-6 rounded-xl border border-bs-danger/30 bg-bs-danger/5 px-4 py-3 text-sm text-bs-danger">
           {error}
+        </div>
+      )}
+
+      {actionMsg && (
+        <div className="mb-6 rounded-xl border border-bs-teal/30 bg-bs-teal-soft/30 px-4 py-3 text-sm text-bs-ink">
+          {actionMsg}
         </div>
       )}
 
@@ -178,7 +219,7 @@ export default function AdminLibrariesPage() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-bs-line bg-bs-surface">
-        <table className="w-full text-sm text-left min-w-[640px]">
+        <table className="w-full text-sm text-left min-w-[720px]">
           <thead>
             <tr className="border-b border-bs-line text-xs uppercase tracking-wider text-bs-muted bg-bs-paper/80">
               <th className="py-3 px-4 font-medium">Library</th>
@@ -186,7 +227,7 @@ export default function AdminLibrariesPage() {
               <th className="py-3 px-3 font-medium">Status</th>
               <th className="py-3 px-3 font-medium">Books</th>
               <th className="py-3 px-3 font-medium">Hours</th>
-              <th className="py-3 px-4 font-medium">Joined</th>
+              <th className="py-3 px-4 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -196,30 +237,21 @@ export default function AdminLibrariesPage() {
                 className="border-b border-bs-line/70 last:border-0 hover:bg-bs-paper/60"
               >
                 <td className="py-3 px-4">
-                  <p className="font-medium text-bs-ink">{lib.name}</p>
-                  <p className="text-xs text-bs-muted mt-0.5">
-                    {lib.email || "No email"}
-                    {lib.latitude != null && lib.longitude != null && (
-                      <span className="ml-2 tabular-nums">
-                        · {lib.latitude.toFixed(3)}, {lib.longitude.toFixed(3)}
+                  <p className="font-medium text-bs-ink">
+                    {lib.name}
+                    {lib.verified ? (
+                      <span className="ml-2 text-[11px] font-medium text-bs-teal">
+                        Verified
                       </span>
-                    )}
+                    ) : null}
+                  </p>
+                  <p className="text-xs text-bs-muted mt-0.5">
+                    Joined {new Date(lib.created_at).toLocaleDateString()}
                   </p>
                 </td>
                 <td className="py-3 px-3 text-xs text-bs-muted">
+                  <p>{lib.email || "—"}</p>
                   <p>{lib.phone || "—"}</p>
-                  {lib.website ? (
-                    <a
-                      href={lib.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-bs-teal hover:underline truncate block max-w-[12rem]"
-                    >
-                      {lib.website.replace(/^https?:\/\//, "")}
-                    </a>
-                  ) : (
-                    <p>—</p>
-                  )}
                 </td>
                 <td className="py-3 px-3">
                   <StatusPill status={lib.status} />
@@ -230,15 +262,27 @@ export default function AdminLibrariesPage() {
                 <td className="py-3 px-3 text-bs-muted tabular-nums">
                   {lib.opens_at || "—"}–{lib.closes_at || "—"}
                 </td>
-                <td className="py-3 px-4 text-bs-muted whitespace-nowrap">
-                  {new Date(lib.created_at).toLocaleDateString()}
+                <td className="py-3 px-4">
+                  {lib.status === "approved" ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="!py-1.5 !px-2.5 text-xs"
+                      disabled={resendingId === lib.id}
+                      onClick={() => resendJoin(lib)}
+                    >
+                      {resendingId === lib.id ? "Sending…" : "Resend join email"}
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-bs-muted">—</span>
+                  )}
                 </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="py-12 px-4 text-center text-bs-muted"
                 >
                   {libraries.length === 0

@@ -18,6 +18,7 @@ export type EditionCopy = {
   opens_at?: string | null;
   closes_at?: string | null;
   open_now?: boolean | null;
+  verified?: boolean;
   library_id?: string | number | null;
 };
 
@@ -208,6 +209,11 @@ export default function EditionResultCard({
               </span>
               {" · "}
               {edition.library_name || `${edition.library_count} libraries`}
+              {nearest?.verified ? (
+                <span className="ml-1.5 text-[11px] font-medium text-bs-teal">
+                  Verified
+                </span>
+              ) : null}
               {edition.found_count
                 ? ` · ${edition.found_count} found recently`
                 : ""}
@@ -340,6 +346,11 @@ export default function EditionResultCard({
                 }}
               >
                 <span className="font-medium">{c.library_name}</span>
+                {c.verified ? (
+                  <span className="ml-1.5 text-[11px] font-medium text-bs-teal">
+                    Verified
+                  </span>
+                ) : null}
                 {c.distance != null ? ` · ${c.distance.toFixed(1)} km` : ""}
                 {c.open_now === true
                   ? " · Open"

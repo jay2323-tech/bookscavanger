@@ -24,6 +24,13 @@ type PendingLibrarian = {
   closes_at?: string | null;
   created_at?: string;
   supabase_user_id: string | null;
+  checklist?: {
+    email: boolean;
+    website: boolean;
+    phone: boolean;
+    hours: boolean;
+    location: boolean;
+  };
 };
 
 type SearchInsights = {
@@ -63,6 +70,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -158,6 +166,7 @@ export default function AdminDashboard() {
 
     setActingId(libraryId);
     setActionError(null);
+    setActionSuccess(null);
     try {
       const endpoint =
         action === "approve"
@@ -192,6 +201,23 @@ export default function AdminDashboard() {
       setPending((prev) => prev.filter((p) => p.id !== libraryId));
       setRejectingId(null);
       setRejectReason("");
+
+      if (action === "approve") {
+        const email = data.email;
+        if (email?.ok) {
+          setActionSuccess(
+            `Approved — join email sent${email.to ? ` to ${email.to}` : ""}.`
+          );
+        } else if (email?.skipped) {
+          setActionSuccess(
+            `Approved. Join email skipped (${email.reason || "Resend not configured"}). You can resend from Libraries.`
+          );
+        } else {
+          setActionSuccess(
+            "Approved. Join email could not be sent — try Resend from Libraries."
+          );
+        }
+      }
     } finally {
       setActingId(null);
     }
@@ -231,6 +257,12 @@ export default function AdminDashboard() {
               Retry
             </button>
           )}
+        </div>
+      )}
+
+      {actionSuccess && (
+        <div className="mb-6 rounded-xl border border-bs-teal/30 bg-bs-teal-soft/30 px-4 py-3 text-sm text-bs-ink">
+          {actionSuccess}
         </div>
       )}
 
@@ -286,6 +318,9 @@ export default function AdminDashboard() {
                 : `${pending.length} waiting`
             }
           />
+          <p className="mt-1 text-xs text-bs-muted">
+            Approve sends a join-link email to the library contact.
+          </p>
 
           {pending.length === 0 ? (
             <p className="mt-4 text-sm text-bs-muted leading-relaxed">
@@ -293,107 +328,210 @@ export default function AdminDashboard() {
               review.
             </p>
           ) : (
-            <ul className="mt-5 space-y-4 bs-stagger">
+            <ul className="mt-5 space-y-6 bs-stagger">
               {pending.map((p) => {
                 const mapsHref =
                   p.latitude != null && p.longitude != null
                     ? `https://www.google.com/maps?q=${p.latitude},${p.longitude}`
                     : null;
+                const checklist = p.checklist || {
+                  email: !!p.email,
+                  website: !!p.website,
+                  phone: !!p.phone,
+                  hours: !!(p.opens_at && p.closes_at),
+                  location: p.latitude != null && p.longitude != null,
+                };
+                const checks = [
+                  { key: "email", label: "Email", ok: checklist.email },
+                  { key: "website", label: "Website", ok: checklist.website },
+                  { key: "phone", label: "Phone", ok: checklist.phone },
+                  { key: "hours", label: "Hours", ok: checklist.hours },
+                  { key: "location", label: "Location", ok: checklist.location },
+                ];
+                const missing = checks.filter((c) => !c.ok);
+
                 return (
                   <li
                     key={p.id}
-                    className="rounded-xl border border-bs-line bg-bs-surface px-4 py-4"
+                    className="rounded-2xl border border-bs-line bg-bs-surface overflow-hidden"
                   >
-                    <div className="flex flex-col gap-3">
-                      <div className="min-w-0">
-                        <p className="font-medium text-bs-ink text-lg">
-                          {p.name}
-                        </p>
-                        <p className="text-sm text-bs-muted mt-0.5 flex flex-wrap items-center gap-2">
-                          <span>{p.email || "No email on file"}</span>
-                          {isFreeEmail(p.email) && (
-                            <span className="text-[10px] uppercase tracking-wide font-semibold text-bs-gold bg-bs-gold/15 px-1.5 py-0.5 rounded">
-                              Free email
-                            </span>
-                          )}
-                        </p>
-                      </div>
-
-                      <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                        <div>
-                          <dt className="text-xs uppercase tracking-[0.1em] text-bs-muted">
-                            Phone
-                          </dt>
-                          <dd className="text-bs-ink">{p.phone || "—"}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-xs uppercase tracking-[0.1em] text-bs-muted">
-                            Website
-                          </dt>
-                          <dd className="text-bs-ink truncate">
-                            {p.website ? (
-                              <a
-                                href={p.website}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-bs-teal hover:underline"
-                              >
-                                {p.website.replace(/^https?:\/\//, "")}
-                              </a>
-                            ) : (
-                              "—"
-                            )}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-xs uppercase tracking-[0.1em] text-bs-muted">
-                            Hours
-                          </dt>
-                          <dd className="text-bs-ink tabular-nums">
-                            {p.opens_at || "—"}–{p.closes_at || "—"}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-xs uppercase tracking-[0.1em] text-bs-muted">
-                            Applied
-                          </dt>
-                          <dd className="text-bs-ink">
+                    <div className="px-5 pt-5 pb-4 border-b border-bs-line bg-bs-paper/50">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[11px] uppercase tracking-[0.14em] text-bs-muted mb-1">
+                            Library application
+                          </p>
+                          <h3
+                            className="text-xl md:text-2xl text-bs-ink tracking-tight"
+                            style={{
+                              fontFamily: "var(--font-display), Georgia, serif",
+                            }}
+                          >
+                            {p.name || "Unnamed library"}
+                          </h3>
+                          <p className="mt-1 text-sm text-bs-muted">
+                            Submitted{" "}
                             {p.created_at
                               ? new Date(p.created_at).toLocaleString()
                               : "—"}
-                          </dd>
+                          </p>
                         </div>
-                        <div className="sm:col-span-2">
-                          <dt className="text-xs uppercase tracking-[0.1em] text-bs-muted">
-                            Location
-                          </dt>
-                          <dd className="text-bs-ink">
-                            {p.latitude != null && p.longitude != null ? (
-                              <span className="inline-flex flex-wrap items-center gap-2">
+                        <span className="shrink-0 rounded-md bg-bs-gold/15 text-bs-gold-ink px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                          Awaiting review
+                        </span>
+                      </div>
+
+                      <ul className="mt-4 flex flex-wrap gap-2">
+                        {checks.map((c) => (
+                          <li
+                            key={c.key}
+                            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ${
+                              c.ok
+                                ? "bg-bs-teal-soft text-bs-teal"
+                                : "bg-bs-danger/10 text-bs-danger"
+                            }`}
+                          >
+                            <span aria-hidden>{c.ok ? "✓" : "–"}</span>
+                            {c.label}
+                          </li>
+                        ))}
+                      </ul>
+                      {missing.length > 0 && (
+                        <p className="mt-2 text-xs text-bs-danger">
+                          Incomplete: {missing.map((m) => m.label).join(", ")}.
+                          You can still approve, or reject and ask them to
+                          update.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="px-5 py-5 grid sm:grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.12em] text-bs-muted mb-3">
+                          Contact
+                        </p>
+                        <dl className="space-y-3 text-sm">
+                          <div>
+                            <dt className="text-bs-muted text-xs mb-0.5">
+                              Email
+                            </dt>
+                            <dd className="text-bs-ink break-all">
+                              {p.email ? (
+                                <a
+                                  href={`mailto:${p.email}`}
+                                  className="text-bs-teal hover:underline"
+                                >
+                                  {p.email}
+                                </a>
+                              ) : (
+                                <span className="text-bs-danger">Not provided</span>
+                              )}
+                              {isFreeEmail(p.email) && (
+                                <span className="ml-2 text-[10px] uppercase tracking-wide font-semibold text-bs-gold bg-bs-gold/15 px-1.5 py-0.5 rounded">
+                                  Free email
+                                </span>
+                              )}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-bs-muted text-xs mb-0.5">
+                              Phone
+                            </dt>
+                            <dd className="text-bs-ink">
+                              {p.phone ? (
+                                <a
+                                  href={`tel:${p.phone}`}
+                                  className="hover:text-bs-teal"
+                                >
+                                  {p.phone}
+                                </a>
+                              ) : (
+                                <span className="text-bs-danger">Not provided</span>
+                              )}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-bs-muted text-xs mb-0.5">
+                              Website
+                            </dt>
+                            <dd className="text-bs-ink">
+                              {p.website ? (
+                                <a
+                                  href={p.website}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-bs-teal hover:underline break-all"
+                                >
+                                  {p.website.replace(/^https?:\/\//, "")}
+                                </a>
+                              ) : (
+                                <span className="text-bs-danger">Not provided</span>
+                              )}
+                            </dd>
+                          </div>
+                        </dl>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.12em] text-bs-muted mb-3">
+                          Presence
+                        </p>
+                        <dl className="space-y-3 text-sm">
+                          <div>
+                            <dt className="text-bs-muted text-xs mb-0.5">
+                              Hours
+                            </dt>
+                            <dd className="text-bs-ink tabular-nums">
+                              {p.opens_at && p.closes_at
+                                ? `${p.opens_at} – ${p.closes_at}`
+                                : (
+                                    <span className="text-bs-danger">
+                                      Not provided
+                                    </span>
+                                  )}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-bs-muted text-xs mb-0.5">
+                              Coordinates
+                            </dt>
+                            <dd className="text-bs-ink">
+                              {p.latitude != null && p.longitude != null ? (
                                 <span className="tabular-nums">
                                   {Number(p.latitude).toFixed(5)},{" "}
                                   {Number(p.longitude).toFixed(5)}
                                 </span>
-                                {mapsHref && (
-                                  <a
-                                    href={mapsHref}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-bs-teal hover:underline text-sm"
-                                  >
-                                    Open in Maps
-                                  </a>
-                                )}
-                              </span>
-                            ) : (
-                              "Not provided"
-                            )}
-                          </dd>
-                        </div>
-                      </dl>
+                              ) : (
+                                <span className="text-bs-danger">
+                                  Not provided
+                                </span>
+                              )}
+                            </dd>
+                          </div>
+                          {mapsHref && (
+                            <div>
+                              <dt className="text-bs-muted text-xs mb-0.5">
+                                Map
+                              </dt>
+                              <dd>
+                                <a
+                                  href={mapsHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center text-bs-teal hover:underline font-medium"
+                                >
+                                  Open in Google Maps
+                                </a>
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+                      </div>
+                    </div>
 
+                    <div className="px-5 py-4 border-t border-bs-line bg-bs-paper/40">
                       {rejectingId === p.id ? (
-                        <div className="border-t border-bs-line pt-3 space-y-2">
+                        <div className="space-y-2">
                           <label className="block text-sm text-bs-ink">
                             Reject reason
                             <textarea
@@ -402,7 +540,7 @@ export default function AdminDashboard() {
                               rows={2}
                               maxLength={500}
                               placeholder="e.g. Couldn’t verify this as a public library"
-                              className="mt-1.5 w-full rounded-lg border border-bs-line bg-bs-paper px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bs-teal/40"
+                              className="mt-1.5 w-full rounded-lg border border-bs-line bg-bs-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-bs-teal/40"
                             />
                           </label>
                           <div className="flex flex-wrap gap-2">
@@ -432,14 +570,14 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       ) : (
-                        <div className="flex gap-2 pt-1">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
                             disabled={actingId === p.id}
                             onClick={() => decideLibrarian(p.id, "approve")}
-                            className="rounded-lg bg-bs-teal px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
+                            className="rounded-lg bg-bs-teal px-4 py-2.5 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
                           >
-                            Approve
+                            {actingId === p.id ? "Working…" : "Approve & email join link"}
                           </button>
                           <button
                             type="button"
@@ -448,7 +586,7 @@ export default function AdminDashboard() {
                               setRejectingId(p.id);
                               setRejectReason("");
                             }}
-                            className="rounded-lg border border-bs-line px-4 py-2 text-sm font-medium text-bs-muted hover:border-bs-danger hover:text-bs-danger disabled:opacity-50"
+                            className="rounded-lg border border-bs-line px-4 py-2.5 text-sm font-medium text-bs-muted hover:border-bs-danger hover:text-bs-danger disabled:opacity-50"
                           >
                             Reject
                           </button>

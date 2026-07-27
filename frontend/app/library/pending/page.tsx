@@ -101,8 +101,8 @@ export default function PendingApprovalPage() {
       title="Approval pending"
       subtitle={
         libraryName
-          ? `${libraryName} is under review. You’ll get access once an admin approves it.`
-          : "Your library application is under review. You’ll get access once an admin approves it."
+          ? `${libraryName} is under review. When an admin approves it, you’ll get an email with a join link.`
+          : "Your library application is under review. When an admin approves it, you’ll get an email with a join link."
       }
     >
       <div className="flex items-center gap-3 rounded-lg border border-bs-line bg-bs-paper/60 px-4 py-3 mb-6">

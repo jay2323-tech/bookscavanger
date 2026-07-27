@@ -1,15 +1,18 @@
 # BookScavenger — Supabase / Postgres schema
 # Run in Supabase SQL editor (or via migrations) on a fresh project.
 
--- Extensions (optional, for future typo-tolerant search)
--- create extension if not exists pg_trgm;
+-- Extensions (typo-tolerant search)
+create extension if not exists pg_trgm;
 
 -- Profiles (role source of truth)
 create table if not exists public.profiles (
   id uuid primary key references auth.users on delete cascade,
+  name text,
   full_name text,
+  email text,
   role text not null default 'customer'
     check (role in ('customer', 'librarian', 'admin')),
+  approved boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -28,6 +31,19 @@ create table if not exists public.libraries (
   approved boolean not null default false,
   rejected boolean not null default false,
   reject_reason text,
+  verified boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+-- Admin-issued invite tokens for trusted library onboarding
+create table if not exists public.library_invites (
+  id bigint generated always as identity primary key,
+  token text not null unique,
+  note text,
+  created_by uuid references auth.users on delete set null,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  used_library_id bigint references public.libraries (id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -54,6 +70,8 @@ create index if not exists books_library_idx on public.books (library_id);
 create index if not exists books_title_idx on public.books (title);
 create index if not exists books_author_idx on public.books (author);
 create index if not exists books_isbn_idx on public.books (isbn);
+create index if not exists books_title_trgm_idx on public.books using gin (title gin_trgm_ops);
+create index if not exists books_author_trgm_idx on public.books using gin (author gin_trgm_ops);
 
 -- Analytics events
 create table if not exists public.analytics (
@@ -72,19 +90,29 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  display_name text;
 begin
-  insert into public.profiles (id, full_name, role)
-  values (
-    new.id,
-    coalesce(
-      new.raw_user_meta_data->>'name',
-      new.raw_user_meta_data->>'full_name',
-      new.email
-    ),
-    'customer'
-  )
+  display_name := coalesce(
+    new.raw_user_meta_data->>'name',
+    new.raw_user_meta_data->>'full_name',
+    new.email
+  );
+
+  insert into public.profiles (id, name, full_name, role)
+  values (new.id, display_name, display_name, 'customer')
   on conflict (id) do nothing;
+
   return new;
+exception
+  when undefined_column then
+    insert into public.profiles (id, full_name, role)
+    values (new.id, display_name, 'customer')
+    on conflict (id) do nothing;
+    return new;
+  when others then
+    raise warning 'handle_new_user failed for %: %', new.id, sqlerrm;
+    return new;
 end;
 $$;
 

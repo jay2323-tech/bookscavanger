@@ -65,3 +65,11 @@ export function createTtlCache({ max = 200, ttlMs = 30_000 } = {}) {
 }
 
 export const searchCache = createTtlCache({ max: 300, ttlMs: 30_000 });
+export const suggestCache = createTtlCache({ max: 200, ttlMs: 15_000 });
+
+/** Round coords so nearby users share cache entries (~1km buckets). */
+export function roundCoord(value, decimals = 2) {
+  const n = Number(value);
+  if (value === "" || value == null || Number.isNaN(n)) return "";
+  return n.toFixed(decimals);
+}

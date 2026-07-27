@@ -9,13 +9,17 @@ import {
 import { createFind } from "../controllers/reader.controller.js";
 import { optionalAuth } from "../middleware/optionalAuth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
-import { searchCache } from "../utils/cache.js";
+import {
+  roundCoord,
+  searchCache,
+  suggestCache,
+} from "../utils/cache.js";
 
 const router = express.Router();
 
 const publicLimit = rateLimit({ windowMs: 60_000, max: 90, keyPrefix: "books" });
 
-const cacheKey = (req) => {
+const searchCacheKey = (req) => {
   const {
     q = "",
     lat = "",
@@ -26,11 +30,23 @@ const cacheKey = (req) => {
     sort = "",
   } = req.query;
   if (!q) return null;
-  return `search:${q}:${lat}:${lng}:${radius}:${available}:${openNow}:${sort}`;
+  const latR = roundCoord(lat);
+  const lngR = roundCoord(lng);
+  return `search:${q}:${latR}:${lngR}:${radius}:${available}:${openNow}:${sort}`;
 };
 
-router.get("/search", publicLimit, searchCache.wrap(cacheKey, searchBooks));
-router.get("/suggest", publicLimit, suggestBooks);
+const suggestCacheKey = (req) => {
+  const q = String(req.query.q || "").trim().toLowerCase();
+  if (!q) return null;
+  return `suggest:${q}`;
+};
+
+router.get("/search", publicLimit, searchCache.wrap(searchCacheKey, searchBooks));
+router.get(
+  "/suggest",
+  publicLimit,
+  suggestCache.wrap(suggestCacheKey, suggestBooks)
+);
 router.get("/trending", publicLimit, trendingBooks);
 router.get("/similar", publicLimit, similarBooks);
 router.post("/click", publicLimit, trackClick);
