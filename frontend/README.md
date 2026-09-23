@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BookScavenger Web App
 
-## Getting Started
+Next.js interface for discovering library books and supporting reader, librarian, and administrator workflows. The application uses React, TypeScript, Supabase authentication, and Google Maps components.
 
-First, run the development server:
+## Run locally
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Start in `frontend/` and create `.env.local`:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```bash
+npm ci
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Open http://localhost:3000. Start the matching Express backend on port 8080, or point `NEXT_PUBLIC_BACKEND_URL` at your API. Configure Supabase redirect URLs for the login flows you use. Map screens also need the Google Maps key referenced by their components.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Structure
 
-## Learn More
+- `app/`: pages, layouts, login callbacks, and dashboard routes.
+- `app/components/`: shared search and map UI.
+- `app/library/`: library authentication, onboarding, and dashboard flows.
+- `app/admin/`: administrator pages.
 
-To learn more about Next.js, take a look at the following resources:
+## Build and verification
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run lint
+npm run build
+npm start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Verify book search, login redirects, role-specific navigation, and map behavior with a configured API and test data. A successful frontend build alone does not validate backend authorization or database policies.
 
-## Deploy on Vercel
+## Related project
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The [combined repository](https://github.com/jay2323-tech/bookscavanger) contains the API, database schema and migrations, and deployment notes. Keep browser keys separate from server credentials; never put a service-role key in a `NEXT_PUBLIC_` variable.
